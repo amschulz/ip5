@@ -1,100 +1,107 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[213]:
 
 
 import csv
-import pandas
+import pandas as pd
 from sklearn.preprocessing import RobustScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
+from datetime import date
+from datetime import timedelta
 import matplotlib.pyplot as plt
 import numpy as np
 
+def get_dataframe():
+    df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_050518/Verkaufszahlen_v2.txt',
+                         sep=';',
+                         header=0,
+                         usecols=[0,6,8,10])
+    # remove inactive products
+    df = df[df['Inaktiv_b'] == 'Falsch']
+    # df = df[df['fk_ArtikelBasis_ID_l'] == 6]
 
-def get_dataframe(value9999=False, valueOnly0=True):
-    with open('Datenexporte/Datenexport_240418/Percentages2.csv', newline='') as f:
-        reader = csv.reader(f, delimiter='	',) 
-        attributes = next(reader)
+     # convert FaktDatum to datetime
+    df['FaktDatum'] = pd.to_datetime(df['FaktDatum'], errors='coerce')
+    
+    # remove old datasets
+    delta = date.today() - timedelta(365 * 3)
+    df = df[df['FaktDatum'] >= delta]
+    # display(df[df['fk_ArtikelBasis_ID_l'] == 6])
+    
+    """
+    # group by quarter of year
+    group = df.groupby(by=[df.fk_ArtikelBasis_ID_l,
+                           df.FaktDatum.dt.year ,
+                           df.FaktDatum.dt.quarter],
+                       group_keys=True).sum()
+    """
+    
+    df['Sum'] = df.groupby([df.fk_ArtikelBasis_ID_l, 
+                            df.FaktDatum.dt.year,
+                            df.FaktDatum.dt.quarter])['Menge'].transform('sum')
+    df['quarter'] = df.FaktDatum.dt.quarter
+    df['year'] = df.FaktDatum.dt.year
+    df['quarterdate'] = df.FaktDatum - pd.tseries.offsets.QuarterEnd()
+    
+    max_date = df.quarterdate.max()
+    min_date = df.quarterdate.min()
 
-        orig_data = []
-        for i, row in enumerate(reader):
-            if i == 0:
-                continue
-            value9999 = False
-            valueOnly0 = True
-            for g, column in enumerate(row):
-                if(g != 6):
-                    column = float(column)
-                if column == '9999' or column == 9999 or column == '-9999' or column == -9999:
-                    value9999 = True
-                if (not (column == 0 or column == '0' or column == '')) and (not (g == 0 or g == '0')):
-                    valueOnly0 = False
-            if len(row) == 7 and                 not valueOnly0:
-                orig_data.append(row)
-        data = {}
-        for j, attribute in enumerate(attributes):
-            values_per_data = [x[j] for x in orig_data]
-            data[attribute] = values_per_data
+    quarters = int(((max_date.year - min_date.year)*12 + (max_date.month - min_date.month))/3.0)
+    df2 = df['fk_ArtikelBasis_ID_l']
+    for i in range(0, quarters):
+        q = ((min_date.quarter + i) % 4 + 1)
+        y = int((min_date.quarter + i) / 4) + min_date.year
+        df2['%s. Quartal %s' % (q, y )] = 0
+        
+    df = df.drop(columns=['Inaktiv_b', 'Menge', 'FaktDatum', 'quarterdate'])
+    df = df.drop_duplicates(subset=['fk_ArtikelBasis_ID_l', 'year', 'quarter'])
+    display(df)
+    return df2
 
-    data_pandas = pandas.DataFrame(data)
-    return data_pandas
 
-def remove_unnecessary_data(data_pandas=None):
-    #calc_data_learn_pandas = data_pandas[['R1 zu R2', 'R2 zu R3', 'R3 zu R4']]
-    calc_data_learn_pandas = data_pandas
-    calc_data_learn_pandas = calc_data_learn_pandas[~calc_data_learn_pandas['ï»¿ArtikelNr'].isin(['189',
-     '3174',
-     '4080',
-     '4389',
-     '5322',
-     '6061',
-     '7188',
-     '7201',
-     '7516',
-     '7662',
-     '7665',
-     '7667',
-     '7668',
-     '7673',
-     '7740',
-     '7753'])]
-    return calc_data_learn_pandas
+def remove_unnecessary_data(data_pandas):
+    data = data_pandas[['R1 zu R2', 'R2 zu R3', 'R3 zu R4', 'R4 zu R5']]
+    return data
 
-def scale_data(calc_data_learn_pandas, scaler=StandardScaler()):
-    scaler.fit(calc_data_learn_pandas)
-    learn_scaled = scaler.transform(calc_data_learn_pandas)
-    return learn_scaled
+def scale_data(data, scaler=StandardScaler()):
+    scaler.fit(data)
+    data_scaled = scaler.transform(data)
+    return data_scaled
 
-def run_kmeans(learn_scaled, n=10):
-    kmeans = KMeans(n_clusters=n, random_state=0).fit(learn_scaled)
+def run_kmeans(data, orig_data, n=10):
+    kmeans = KMeans(n_clusters=n, random_state=0).fit(data)
     
     label_count = []
-    for i in range(10):
+    for i in range(n):
         label_count.append(0)
 
-    learn_labels = kmeans.labels_
-    for i, x in enumerate(learn_labels):
+    labels = kmeans.labels_
+    for i, x in enumerate(labels):
         label_count[x] += 1
 
     print(label_count)
     # calc_data_learn_pandas['Kategorie'] = [labels[x] for x in learn_labels]
-    calc_data_learn_pandas['Kategorie'] = [x for x in learn_labels]
-    return calc_data_learn_pandas
+    orig_data['Kategorie'] = [x for x in labels]
+    return orig_data
 
-def show_data_per_label(calc_data_learn_pandas, label=None):
+def show_data_per_label(labeled_data, label=None, length=10):
     if label == None:
-        display(calc_data_learn_pandas)
+        display(labeled_data)
     else:
-        display(calc_data_learn_pandas[calc_data_learn_pandas['Kategorie'].isin([label])])
+        display(labeled_data[labeled_data['Kategorie'].isin([label])][:10])
         
-def show_elbow_method(learn_scaled):
+def show_elbow_method(data, a=1, b=25):
     kmeans = None
     ar = {}
+    
+    if a < 1:
+        raise Exception()
 
-    for i in range(1, 25):
-        kmeans  = KMeans(n_clusters=i, random_state=0).fit(learn_scaled)
+    for i in range(a, b):
+        kmeans  = KMeans(n_clusters=i, random_state=0).fit(data)
         ar[i] = kmeans.inertia_
 
     plt.figure()
@@ -102,11 +109,11 @@ def show_elbow_method(learn_scaled):
     plt.xlabel("Number of cluster")
     plt.ylabel("AR")
     plt.show()
-    
-data = get_dataframe()
-# data = remove_unnecessary_data(data)
-scale_data(calc_data_learn_pandas=data)
-kmeandata = run_kmeans(data)
-# show_data_per_label(kmeandata, 2)
-# show_elbow_method(data)
+
+
+# In[214]:
+
+
+orig_data = get_dataframe()
+display(orig_data)
 
