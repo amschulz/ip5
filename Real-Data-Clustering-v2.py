@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[213]:
+# In[102]:
 
 
 import csv
@@ -9,19 +9,23 @@ import pandas as pd
 from sklearn.preprocessing import RobustScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
+import datetime
 from datetime import date
 from datetime import timedelta
 import matplotlib.pyplot as plt
 import numpy as np
 
 def get_dataframe():
+    starttime = datetime.datetime.now()
     df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_050518/Verkaufszahlen_v2.txt',
                          sep=';',
                          header=0,
                          usecols=[0,6,8,10])
+    df = df.rename(index=str, columns={'fk_ArtikelBasis_ID_l':'ArtikelID'})
+        
     # remove inactive products
     df = df[df['Inaktiv_b'] == 'Falsch']
-    # df = df[df['fk_ArtikelBasis_ID_l'] == 6]
+    # df = df[(df['ArtikelID'] == 6) | (df['ArtikelID'] == 8)]
 
      # convert FaktDatum to datetime
     df['FaktDatum'] = pd.to_datetime(df['FaktDatum'], errors='coerce')
@@ -29,17 +33,9 @@ def get_dataframe():
     # remove old datasets
     delta = date.today() - timedelta(365 * 3)
     df = df[df['FaktDatum'] >= delta]
-    # display(df[df['fk_ArtikelBasis_ID_l'] == 6])
     
-    """
-    # group by quarter of year
-    group = df.groupby(by=[df.fk_ArtikelBasis_ID_l,
-                           df.FaktDatum.dt.year ,
-                           df.FaktDatum.dt.quarter],
-                       group_keys=True).sum()
-    """
-    
-    df['Sum'] = df.groupby([df.fk_ArtikelBasis_ID_l, 
+    # group by quarter and sum up the 'Menge'
+    df['Sum'] = df.groupby([df.ArtikelID, 
                             df.FaktDatum.dt.year,
                             df.FaktDatum.dt.quarter])['Menge'].transform('sum')
     df['quarter'] = df.FaktDatum.dt.quarter
@@ -49,16 +45,36 @@ def get_dataframe():
     max_date = df.quarterdate.max()
     min_date = df.quarterdate.min()
 
-    quarters = int(((max_date.year - min_date.year)*12 + (max_date.month - min_date.month))/3.0)
-    df2 = df['fk_ArtikelBasis_ID_l']
-    for i in range(0, quarters):
-        q = ((min_date.quarter + i) % 4 + 1)
-        y = int((min_date.quarter + i) / 4) + min_date.year
-        df2['%s. Quartal %s' % (q, y )] = 0
-        
+    # remove unnecessary columns & drop duplicate values
     df = df.drop(columns=['Inaktiv_b', 'Menge', 'FaktDatum', 'quarterdate'])
-    df = df.drop_duplicates(subset=['fk_ArtikelBasis_ID_l', 'year', 'quarter'])
-    display(df)
+    df = df.drop_duplicates(subset=['ArtikelID', 'year', 'quarter'])
+    
+    # calculate amount of quaretrs between min and max date of datasets
+    quarters = int(((max_date.year - min_date.year)*12 + (max_date.month - min_date.month))/3.0)
+    
+    # create new dataframe with all ArtikelIds
+    df2 = pd.DataFrame({'ArtikelID': df['ArtikelID'].unique()})
+    
+    # go through the quarter difference 
+    for quart in range(0, quarters):
+        q = ((min_date.quarter + quart) % 4 + 1)
+        y = int((min_date.quarter + quart) / 4) + min_date.year
+        s = '%s. Quartal %s' % (q, y )
+        
+        # get data of df where quarter and year are the same
+        data = df[(df['quarter'] == q) & (df['year'] == y)]
+        
+        # add new column to df2 (sum of the quarter)
+        df2 = df2.merge(data[['ArtikelID', 'Sum']],
+                        on=['ArtikelID'],
+                        how='outer')
+        df2 = df2.rename(index=str, columns={'Sum': s})
+        
+    # from the merge come NaN values. replace them with 0
+    df2 = df2.fillna(0)
+    
+    endtime = datetime.datetime.now()
+    print('Duration of getting DataFrame: %s seconds' % (endtime-starttime).seconds)
     return df2
 
 
@@ -111,7 +127,7 @@ def show_elbow_method(data, a=1, b=25):
     plt.show()
 
 
-# In[214]:
+# In[103]:
 
 
 orig_data = get_dataframe()
