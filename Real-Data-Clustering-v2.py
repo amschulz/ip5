@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[102]:
+# In[95]:
 
 
 import csv
@@ -18,9 +18,9 @@ import numpy as np
 def get_dataframe():
     starttime = datetime.datetime.now()
     df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_050518/Verkaufszahlen_v2.txt',
-                         sep=';',
-                         header=0,
-                         usecols=[0,6,8,10])
+                     sep=';',
+                     header=0,
+                     usecols=[0,6,8,10])
     df = df.rename(index=str, columns={'fk_ArtikelBasis_ID_l':'ArtikelID'})
         
     # remove inactive products
@@ -32,7 +32,7 @@ def get_dataframe():
     
     # remove old datasets
     delta = date.today() - timedelta(365 * 3)
-    df = df[df['FaktDatum'] >= delta]
+    df = df[(df['FaktDatum'] >= delta) & (df['FaktDatum'] < date(2017, 10, 1))]
     
     # group by quarter and sum up the 'Menge'
     df['Sum'] = df.groupby([df.ArtikelID, 
@@ -55,11 +55,14 @@ def get_dataframe():
     # create new dataframe with all ArtikelIds
     df2 = pd.DataFrame({'ArtikelID': df['ArtikelID'].unique()})
     
+    listoflabels = []
+    
+    
     # go through the quarter difference 
     for quart in range(0, quarters):
         q = ((min_date.quarter + quart) % 4 + 1)
         y = int((min_date.quarter + quart) / 4) + min_date.year
-        s = '%s. Quartal %s' % (q, y )
+        s = '%sQ%s' % (y, q )
         
         # get data of df where quarter and year are the same
         data = df[(df['quarter'] == q) & (df['year'] == y)]
@@ -68,19 +71,36 @@ def get_dataframe():
         df2 = df2.merge(data[['ArtikelID', 'Sum']],
                         on=['ArtikelID'],
                         how='outer')
-        df2 = df2.rename(index=str, columns={'Sum': s})
+        df2.rename(inplace=True, columns={'Sum': s})
+        listoflabels.append(s)
         
     # from the merge come NaN values. replace them with 0
     df2 = df2.fillna(0)
     
+    for i, label in enumerate(listoflabels):
+        if i != 0:
+            labelold = listoflabels[i - 1]
+            s = '%s : %s' % (labelold, label)
+            df2[s] = df2[label] / df2[labelold] - 1
+            conditions = [
+                (df2[s] >= 1.00),
+                (df2[s] >= 0.60) & (df2[s] < 1.00),
+                (df2[s] >= 0.20) & (df2[s] < 0.60),
+                (df2[s] >= -0.20) & (df2[s] < 0.20),
+                (df2[s] >= -0.60) & (df2[s] < -0.20),
+                (df2[s] >= -1.00) & (df2[s] < -0.60),
+                (df2[s] < -1.00)
+            ]
+            choices = [3, 2, 1, 0, -1, -2, -3]
+            df2['%s Category' % (s)] = np.select(conditions, choices, default=0)
+            df2 = df2.drop(columns=[labelold, s])
+            if i == len(listoflabels) - 1:
+                df2 = df2.drop(columns=[label])
+        
+    
     endtime = datetime.datetime.now()
     print('Duration of getting DataFrame: %s seconds' % (endtime-starttime).seconds)
-    return df2
-
-
-def remove_unnecessary_data(data_pandas):
-    data = data_pandas[['R1 zu R2', 'R2 zu R3', 'R3 zu R4', 'R4 zu R5']]
-    return data
+    return df2    
 
 def scale_data(data, scaler=StandardScaler()):
     scaler.fit(data)
@@ -127,9 +147,17 @@ def show_elbow_method(data, a=1, b=25):
     plt.show()
 
 
-# In[103]:
+# In[101]:
 
 
 orig_data = get_dataframe()
 display(orig_data)
+scaled_data = scale_data(orig_data, scaler=StandardScaler())
+data=orig_data
+
+show_elbow_method(data=data, a=1, b=12)
+# Originaldaten: Optimum zwischen 2 und 4; 
+# StandardScalerDaten: Optimum zwischen 2 und 3;
+# RobustScalerDaten: Optimum zwischen 3 und 4;
+# alles zu unpräzise für unseren Verwendungszweck
 
