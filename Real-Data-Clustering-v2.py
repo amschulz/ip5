@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[95]:
+# In[112]:
 
 
 import csv
@@ -83,15 +83,24 @@ def get_dataframe():
             s = '%s : %s' % (labelold, label)
             df2[s] = df2[label] / df2[labelold] - 1
             conditions = [
-                (df2[s] >= 1.00),
-                (df2[s] >= 0.60) & (df2[s] < 1.00),
-                (df2[s] >= 0.20) & (df2[s] < 0.60),
-                (df2[s] >= -0.20) & (df2[s] < 0.20),
-                (df2[s] >= -0.60) & (df2[s] < -0.20),
-                (df2[s] >= -1.00) & (df2[s] < -0.60),
-                (df2[s] < -1.00)
+                (df2[s] >= 1.00), # 7
+                (df2[s] >= 0.80) & (df2[s] < 1.00), # 6
+                (df2[s] >= 0.60) & (df2[s] < 0.80), # 5
+                (df2[s] >= 0.40) & (df2[s] < 0.60), # 4
+                (df2[s] >= 0.20) & (df2[s] < 0.40), # 3
+                (df2[s] >= 0.10) & (df2[s] < 0.20), # 2
+                (df2[s] >= 0.05) & (df2[s] < 0.10), # 1
+                (df2[s] >= -0.05) & (df2[s] < 0.05), # 0 
+                (df2[s] >= -0.10) & (df2[s] < -0.05), # -1
+                (df2[s] >= -0.20) & (df2[s] < -0.10), # -2
+                (df2[s] >= -0.40) & (df2[s] < -0.20), # -3
+                (df2[s] >= -0.60) & (df2[s] < -0.40), # -4
+                (df2[s] >= -0.80) & (df2[s] < -0.50), # -5
+                (df2[s] >= -1.00) & (df2[s] < -0.80), # -6
+                (df2[s] < -1.00) # -7
             ]
-            choices = [3, 2, 1, 0, -1, -2, -3]
+            choices = [7, 6, 5, 4, 3, 2, 1, 0,
+                       -1, -2, -3, -4, -5, -6, -7]
             df2['%s Category' % (s)] = np.select(conditions, choices, default=0)
             df2 = df2.drop(columns=[labelold, s])
             if i == len(listoflabels) - 1:
@@ -147,17 +156,108 @@ def show_elbow_method(data, a=1, b=25):
     plt.show()
 
 
-# In[101]:
+# In[113]:
 
 
 orig_data = get_dataframe()
 display(orig_data)
-scaled_data = scale_data(orig_data, scaler=StandardScaler())
+# scaled_data = scale_data(orig_data, scaler=StandardScaler())
 data=orig_data
 
-show_elbow_method(data=data, a=1, b=12)
+# show_elbow_method(data=data, a=1, b=12)
 # Originaldaten: Optimum zwischen 2 und 4; 
 # StandardScalerDaten: Optimum zwischen 2 und 3;
 # RobustScalerDaten: Optimum zwischen 3 und 4;
 # alles zu unpräzise für unseren Verwendungszweck
+
+
+# In[119]:
+
+
+def get_relevant_columns(df):
+    suffix = ' Category'
+    relevant_columns = []
+    columns = list(data.columns.values)
+    for column in columns:
+        if column.endswith(suffix, 15):
+            relevant_columns.append(column)
+    return relevant_columns
+
+def fill_templates(columns):
+        templ= {'hype_up': [1, 1, 1, 1, 1, 4, 5, 6],
+                'hype_neutral': [0, 0, 0, 0, 0, 4, 5, 6],
+                'hype_down': [-1, -1, -1, -1, -1, 4, 5, 6],
+                'neutral_up': [1, 0, 1, 0, 1, 0, 0, 0],
+                'neutral_neutral': [0, 0, 0, 0, 0, 0, 0, 0],
+                'neutral_down': [-1, 0, -1, 0, -1, 0, 0, 0],
+                'anti-hype_up': [1, 1, 1, 1, 1, -4, -5, -7],
+                'anti-hype_neutral': [0, 0, 0, 0, 0, -4, -4, -7],
+                'anti-hype_down': [-1, -1, -1, -1, -1, -4, -5, -6],
+                'volatile_up': [6, -6, 6, -6, 7, -6, 7, -6],
+                'volatile_neutral': [6, -6, 6, -6, 6, -6, 6, -6],
+                'volatile_down': [-6, 6, -6, 6, -7, 7, -7, 7]}
+        return templ
+
+def select_template(row, relevant_columns, templates):
+    template_keys = templates.keys()
+    column_length = len(relevant_columns)
+    index = 0
+    best_template = None
+    best_sum_euler = (column_length * 15 * 15) # 15 because of the max possible difference (currently 15) 
+    for key in template_keys:
+        template = templates[key]
+        sum_euler_difference = 0
+        for i, value in enumerate(reversed(template)):
+            calc_index = column_length - i - 1
+            if calc_index < 0:
+                continue
+            row_val = row[relevant_columns[calc_index]]
+            difference = value - row_val
+            euler_difference = difference * difference
+            sum_euler_difference += euler_difference
+        if sum_euler_difference == best_sum_euler:
+            print('Template-Collision!')
+        elif sum_euler_difference < best_sum_euler:
+            best_sum_euler = sum_euler_difference
+            best_template = key            
+    return best_template
+    
+
+def set_template(df, relevant_columns, templates):
+    d = df.apply(lambda row: select_template(row, relevant_columns, templates), axis=1)
+    df['Template'] = d
+    return df
+                
+relevant_columns = get_relevant_columns(data)
+templates = fill_templates(relevant_columns)
+data = set_template(data, relevant_columns, templates)
+data
+
+
+# In[130]:
+
+
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+
+def linear_regression_all(data):
+    data_to = data.drop(columns=['2017Q1 : 2017Q2 Category', 'Template'])
+    X_train, X_test, y_train, y_test = train_test_split(data_to, data['2017Q1 : 2017Q2 Category'], random_state=0)
+    lr = LinearRegression().fit(X_train, y_train)
+    print('All - Score training: %s' % lr.score(X_train, y_train))
+    print('All - Score test: %s' % lr.score(X_test, y_test))
+
+def linear_regression_per_template(data, templates):
+    for key in templates.keys():
+        df = data.loc[data['Template'] == key]
+        df_to = df.drop(columns=['2017Q1 : 2017Q2 Category', 'Template'])
+        X_train, X_test, y_train, y_test = train_test_split(df_to, df['2017Q1 : 2017Q2 Category'], random_state=0)
+        if len(X_train) == 0:
+            continue
+        lr = LinearRegression().fit(X_train, y_train)
+        print('Template(%s) - Score training: %s' % (key, lr.score(X_train, y_train)))
+        print('Template(%s) - Score test: %s' % (key, lr.score(X_test, y_test)))
+            
+linear_regression_all(data)
+linear_regression_per_template(data, templates)
 
