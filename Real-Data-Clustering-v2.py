@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[75]:
+# In[82]:
 
 
 import csv
@@ -163,6 +163,27 @@ def group_by_quarter(df):
     return {'df': df2,
             'listoflabels':listoflabels}
 
+def group_by_quarter2(df):
+    df = df.copy()
+    df = df.groupby(['ArtikelID', pd.Grouper(key='FaktDatum', freq='QS')])['Menge'].sum().reset_index()
+    
+    # create dummy product and append it to the dataframe.
+    # This way we have all dates in the dataframe even if none of the products was sold.
+    dummyproductsales = []
+    date_range = pd.date_range(start=df.FaktDatum.min(), end=df.FaktDatum.max(), freq='QS')
+    for week_start in date_range:
+        dummyproductsales.append([-1, week_start, 0])
+    dummydf = pd.DataFrame(dummyproductsales, columns=['ArtikelID', 'FaktDatum', 'Menge'])
+    df = df.append(dummydf)
+    
+    df['FaktDatum'] = df['FaktDatum'].dt.strftime('%Y-%m-%d')
+    listoflabels = df['FaktDatum'].unique()
+    df = df.pivot(index='ArtikelID', columns='FaktDatum', values='Menge')
+    df = df.fillna(0)
+    df = df.drop(-1)
+    return {'df': df,
+           'listoflabels': listoflabels}
+
 def group_by_month(df):
     df = df.copy()
     df = df.groupby(['ArtikelID', pd.Grouper(key='FaktDatum', freq='MS')])['Menge'].sum().reset_index()
@@ -322,13 +343,16 @@ def get_output_file(config_file='config.json'):
     return output_file
 
 
-# In[76]:
+# In[83]:
 
 
 outf = get_output_file()
 orig_data = get_dataframe()
 # display(orig_data)
 # data_quarter = group_by_quarter(orig_data)
+# data_quarter2 = group_by_quarter2(orig_data)
+# display(data_quarter)
+# display(data_quarter2)
 # df_quarter_cat = categorize(data_quarter['df'], data_quarter['listoflabels'])
 # display(df_quarter_cat)
 
