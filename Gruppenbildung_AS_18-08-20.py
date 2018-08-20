@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[3]:
+# In[1]:
 
 
 # %matplotlib notebook
@@ -60,7 +60,6 @@ def get_phases(df):
 
 def get_peaks(df):
     df['Gehört zu Peak'] = (df['LinReg - Echt % 1 Digit'] < 0) & (df['VerAvg - Echt % 1 Digit'] < 0)
-    display(df)
     verlauf = []
     for num, row in enumerate(df['Gehört zu Peak']):
         if not verlauf:
@@ -77,6 +76,15 @@ def get_peaks(df):
     for phase in verlauf:
         if phase['IsPeak']:
             peaks.append(phase)
+    
+    if peaks and peaks[-1]['to'] == 12 and peaks[0]['from'] == 1:
+        lastpeak = peaks[-1]
+        firstpeak = peaks[0]
+        lastpeak['to'] = firstpeak['to']
+        lastpeak['length'] = lastpeak['length'] + peaks[0]['length'] 
+        peaks[-1] =  lastpeak
+        del peaks[0]
+            
     return peaks
 
 def is_linear(df, phases, peaks):
@@ -115,13 +123,9 @@ def is_linear(df, phases, peaks):
 def is_onelongpeak(df, phases, peaks):
     real_peaks = []
     for peak in peaks:
-        print(peak)
         if peak['length'] > 1:
             real_peaks.append(peak)
-    print('rela_peaks')
-    print(real_peaks)
     if len(real_peaks) == 1:
-        print(real_peaks[0])
         return real_peaks[0]['length'] >= 3
     else:
         return False 
@@ -205,7 +209,7 @@ def is_twoshortpeaks(df, phases, peaks):
     '''
 
 def categorize(df):
-    printit = True
+    printit = False
     peaks = get_peaks(df)
     phases = get_phases(df)
     linear = is_linear(df, phases, peaks)
@@ -242,6 +246,8 @@ def categorize(df):
     return 'Gruppe: 6 - Rest'
 
 def display_results(ds):
+    categories = {}
+    show_prints = False
     for el in ds:
         typ = el['typ']
         d = el['d']
@@ -249,16 +255,20 @@ def display_results(ds):
         regr = LinearRegression()
         X_train = df1['Monat']
         y_train = df1['Verkaufsmenge']
-        X_train = X_train.values.reshape(12, 1)
-        y_train = y_train.values.reshape(12, 1)
+        try:
+            X_train = X_train.values.reshape(12, 1)
+            y_train = y_train.values.reshape(12, 1)
+        except ValueError as e:
+            display(el['typ'])
+            display(df1)
+            raise ValueError
+            
         regr.fit(X_train, y_train)
         df1['Lineare Regression'] = regr.predict(X_train)
         # df1['Gleitende Durchschnitte'] = df1.rolling(window=3).mean()['Verkaufsmenge']
         # df1['LinReg - GleDur'] = (df1['Lineare Regression'] - df1['Gleitende Durchschnitte'])
         # df1['Betrag LinReg - GleDur'] = (df1['LinReg - GleDur']) * (df1['LinReg - GleDur'])
         # df1['Betrag LinReg - GleDur']= df1['Betrag LinReg - GleDur'].apply(np.sqrt)
-        fig = plt.figure(figsize=(20, 5))
-        plt.subplot(1, 2 ,1)
         df1['Verkaufsmenge Avg'] = df1['Verkaufsmenge'].mean()
         df1['VerAvg - Echt'] = df1['Verkaufsmenge Avg'] - df1['Verkaufsmenge']
         df1['LinReg - Echt'] = (df1['Lineare Regression'] - df1['Verkaufsmenge'])
@@ -274,42 +284,46 @@ def display_results(ds):
 
         df1['LinReg - Echt % MovAvg'] = df1.rolling(window=3).mean()['LinReg - Echt %'].round(1)
         # df1['LinReg - Echt % 1 Digit MovAvg'] = df1.rolling(window=3).mean()['LinReg - Echt % 1 Digit'].round(1)
-
-
-        plt1 = plt.scatter(X_train, y_train,  color='black', label='Tatsächliche Werte')
-        plt2 = plt.plot(X_train, regr.predict(X_train), color='blue', linewidth=3)
-        plt3 = plt.plot(X_train, df1.rolling(window=3).mean()['Verkaufsmenge'], color='red')
-        plt9 = plt.plot(X_train, df1['Verkaufsmenge Avg'], color='#316200')
-        plt.yticks(np.arange(0, df1['Verkaufsmenge'].max(), 10))
-        plt.legend(handles=[plt1,
-                            mpatches.Patch(color='blue', label='Lineare regression'),
-                            mpatches.Patch(color='red', label='Moving average'),
-                            mpatches.Patch(color='#316200', label='Verkaufsmenge Avg'),
-                           ])
-        plt.title('Trendbestimmung %s' % typ)
-        plt.subplot(1, 2 ,2)
-        plt4 = plt.plot(X_train, df1['LinReg - Echt %'], color='black', label='LinReg - Echt %')
-        plt5 = plt.scatter(X_train, [0,0,0,0,0,0,0,0,0,0,0,0], color='blue', label='Wert 0')
-        plt6 = plt.plot(X_train, df1['LinReg - Echt % 1 Digit'], color='#d500d5', label='LinReg - Echt % 1 Digit')
-        plt7 = plt.plot(X_train, df1['LinReg - Echt % MovAvg'], color='#FF9650')
-        # plt8 = plt.plot(X_train, df1['LinReg - Echt % 1 Digit MovAvg'], color='#316200')
         
+        if show_prints: 
+            fig = plt.figure(figsize=(20, 5))
+            plt.subplot(1, 2 ,1)
+            plt1 = plt.scatter(X_train, y_train,  color='black', label='Tatsächliche Werte')
+            plt2 = plt.plot(X_train, regr.predict(X_train), color='blue', linewidth=3)
+            plt3 = plt.plot(X_train, df1.rolling(window=3).mean()['Verkaufsmenge'], color='red')
+            plt9 = plt.plot(X_train, df1['Verkaufsmenge Avg'], color='#316200')
+            plt.yticks(np.arange(0, df1['Verkaufsmenge'].max(), 10))
+            plt.legend(handles=[plt1,
+                                mpatches.Patch(color='blue', label='Lineare regression'),
+                                mpatches.Patch(color='red', label='Moving average'),
+                                mpatches.Patch(color='#316200', label='Verkaufsmenge Avg'),
+                               ])
+            plt.title('Trendbestimmung %s' % typ)
+            plt.subplot(1, 2 ,2)
+            plt4 = plt.plot(X_train, df1['LinReg - Echt %'], color='black', label='LinReg - Echt %')
+            plt5 = plt.scatter(X_train, [0,0,0,0,0,0,0,0,0,0,0,0], color='blue', label='Wert 0')
+            plt6 = plt.plot(X_train, df1['LinReg - Echt % 1 Digit'], color='#d500d5', label='LinReg - Echt % 1 Digit')
+            plt7 = plt.plot(X_train, df1['LinReg - Echt % MovAvg'], color='#FF9650')
+            # plt8 = plt.plot(X_train, df1['LinReg - Echt % 1 Digit MovAvg'], color='#316200')
 
 
-        #plt.yticks(np.arange(-1, 1.1, 0.1))
-        plt.yticks(np.arange(-2, 1, 0.3))
-        plt.legend(handles=[mpatches.Patch(color='black', label='LinReg - Echt %'),
-                            mpatches.Patch(color='#d500d5', label='LinReg - Echt % 1 Digit'),
-                            mpatches.Patch(color='#FF9650', label='LinReg - Echt % MovAvg'),
-                            # mpatches.Patch(color='#316200', label='LinReg - Echt % 1 Digit MoAvg'),
-                            mpatches.Patch(color='blue', label='Wert 0')])
-        # fig.suptitle('Trendbestimmung von Artikel %s (%s) ' % (product_id, muster))
-        plt.show()
+
+            #plt.yticks(np.arange(-1, 1.1, 0.1))
+            plt.yticks(np.arange(-2, 1, 0.3))
+            plt.legend(handles=[mpatches.Patch(color='black', label='LinReg - Echt %'),
+                                mpatches.Patch(color='#d500d5', label='LinReg - Echt % 1 Digit'),
+                                mpatches.Patch(color='#FF9650', label='LinReg - Echt % MovAvg'),
+                                # mpatches.Patch(color='#316200', label='LinReg - Echt % 1 Digit MoAvg'),
+                                mpatches.Patch(color='blue', label='Wert 0')])
+            # fig.suptitle('Trendbestimmung von Artikel %s (%s) ' % (product_id, muster))
+            plt.show()
         # display(df1)
-        display(categorize(df1))
+        category = categorize(df1)
+        categories[el['typ']] = category
+    return categories
 
 
-# In[60]:
+# In[98]:
 
 
 ds1 = [{'typ': 'linear steigend',
@@ -326,7 +340,7 @@ ds = ds1
 display_results(ds)
 
 
-# In[61]:
+# In[99]:
 
 
 ds2 = [{'typ': '1 langes Hoch 1',
@@ -343,7 +357,7 @@ ds = ds2
 display_results(ds)
 
 
-# In[62]:
+# In[100]:
 
 
 ds3 = [{'typ': '1 kurzes Hoch 1',
@@ -360,7 +374,7 @@ ds = ds3
 display_results(ds)
 
 
-# In[63]:
+# In[101]:
 
 
 ds4 = [{'typ': '2 lange Hochs 1',
@@ -378,7 +392,7 @@ ds = ds4
 display_results(ds)
 
 
-# In[64]:
+# In[102]:
 
 
 ds5 = [{'typ': '2 kurze Hochs 1',
@@ -395,7 +409,7 @@ ds = ds5
 display_results(ds)
 
 
-# In[65]:
+# In[103]:
 
 
 ds6 = [{'typ': '1 Hoch, Lang + Zeroes 1',
@@ -412,7 +426,7 @@ ds = ds6
 display_results(ds)
 
 
-# In[66]:
+# In[104]:
 
 
 ds7 = [{'typ': 'felco 4 16',
@@ -434,7 +448,7 @@ ds = ds7
 display_results(ds)
 
 
-# In[67]:
+# In[105]:
 
 
 ds8 = [{'typ': '2 hoche Hochs 1',
@@ -454,7 +468,7 @@ ds = ds8
 display_results(ds)
 
 
-# In[68]:
+# In[106]:
 
 
 ds9 = [{'typ': '1 langes Hochs 1',
@@ -471,7 +485,7 @@ ds = ds9
 display_results(ds)
 
 
-# In[69]:
+# In[107]:
 
 
 ds10 = [{'typ': '2 kurze Hochs 1',
@@ -491,7 +505,7 @@ ds = ds10
 display_results(ds)
 
 
-# In[4]:
+# In[5]:
 
 
 import csv
@@ -508,12 +522,13 @@ import os
 import json
 import datetime as dt
 
+enddate = date(2017, 1, 1)
+
 
 def group_by_month(df):
     df = df.copy()
     df = df.groupby(['ArtikelID', pd.Grouper(key='FaktDatum', freq='MS')])['Menge'].sum().reset_index()
     idx = pd.date_range(start=df.FaktDatum.min(), end=df.FaktDatum.max(), freq='MS')
-    display(df)
     df.index = pd.DatetimeIndex(df.FaktDatum)
     df = df.reindex(idx, fill_value=0)
     df = df.drop(columns=['FaktDatum', 'ArtikelID'])
@@ -524,7 +539,7 @@ def group_by_month(df):
 def group_by_month1(df):
     df = df.copy()
     df = df.groupby(['ArtikelID', pd.Grouper(key='FaktDatum', freq='MS')])['Menge'].sum().reset_index()
-    idx = pd.date_range(start=df.FaktDatum.min(), end=df.FaktDatum.max(), freq='MS')
+    idx = pd.date_range(start=df.FaktDatum.min(), end=enddate, freq='MS')
     df.index = pd.DatetimeIndex(df.FaktDatum)
     df = df.reindex(idx, fill_value=0)
     df = df.drop(columns=['FaktDatum', 'ArtikelID'])
@@ -541,29 +556,94 @@ def get_dataframe():
         
     # remove inactive products
     df = df[df['Inaktiv_b'] == 'Falsch']
-    df = df[(df['ArtikelID'].isin([722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]))]
+    # df = df[(df['ArtikelID'].isin([722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]))]
+    # df = df[(df['ArtikelID'].isin([8028]))]
+
 
      # convert FaktDatum to datetime
     df['FaktDatum'] = pd.to_datetime(df['FaktDatum'], errors='coerce')
     
     # remove old datasets
-    delta = date.today() - timedelta(365 * 5)
-    df = df[(df['FaktDatum'] >= delta) & (df['FaktDatum'] < date(2017, 10, 1))]
+    delta = enddate - timedelta(365 * 5)
+    df = df[(df['FaktDatum'] >= delta) & (df['FaktDatum'] < enddate)]
     return df
     
 df = get_dataframe()
 ids = df['ArtikelID'].unique()
+
+amount = 0
+correct = 0
+fals = 0
+rest_correct = 0
+pr = True
 
 for i in ids:
     df2 = df.copy()
     df2 = df2[(df2['ArtikelID'] == i)]
     df2 = group_by_month1(df2)['df']
     df2['Date'] = df2.index
+    df2['Jahr'] = df2.Date.dt.year
     df2['Monat'] = df2.Date.dt.month
+    fullyears = []
+    for year in df2.Jahr.unique():
+        df3 = df2.copy()
+        df3['Verkaufsmenge'] = df3['Menge']
+        df3 = df3[df3['Jahr'] == year]
+        df3 = df3.drop(columns=['Date'])
+        if df3.Monat.max() == 12 and df3.Monat.min() == 1:
+            fullyears.append({'typ': '%s %s' % (i, year), 'd': df3})
+        else:
+            continue
+    if not fullyears:
+        continue
+    categories_yearly = display_results(fullyears)
+ 
     df2 = df2.groupby(['Monat'])['Menge'].mean().reset_index()
     df2['Verkaufsmenge'] = df2['Menge']
-    ds = [{'typ': '%s' % i,
-            'd': df2},]
-    display_results(ds)
-    break
+    ds = [{'typ': '%s mean' % i,
+            'd': df2}]
+    categories_mean = display_results(ds)
+    
+    sumofvals = 0
+    val_sum = {}
+    for val in categories_yearly.values():
+        sumofvals = sumofvals + 1
+        if val not in val_sum.keys():
+            val_sum[val] = 1
+        else:
+            val_sum[val] = val_sum[val] + 1
+    if sumofvals < 3:
+        continue
+    
+    amount = amount + 1
+    
+    group = ''
+    for key, val in val_sum.items():
+        if (val / sumofvals) > 0.5:
+            group = key
+            break
+    else:
+        fals = fals + 1
+        continue
+    
+    if group != categories_mean['%s mean' % i]:
+        fals = fals + 1
+    else:
+        correct =  correct + 1
+        if group == 'Gruppe: 6 - Rest':
+            rest_correct = rest_correct + 1
+
+assert correct + fals == amount        
+
+print('amount: %s' % amount)
+print('correct: %s' % correct)
+print('fals: %s' % fals)
+
+print('correctnes: %s' % (correct/amount))
+
+
+# In[7]:
+
+
+rest_correct
 
