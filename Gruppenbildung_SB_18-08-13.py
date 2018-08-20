@@ -1,14 +1,11 @@
 
 # coding: utf-8
 
-# In[96]:
+# In[136]:
 
 
-
+#%matplotlib notebook
 # coding: utf-8
-
-# In[11]:
-
 
 from sklearn.linear_model import LinearRegression
 import matplotlib.patches as mpatches
@@ -22,13 +19,14 @@ def get_phases(df):
     phases = {}
     for column in columns:
         phases_col = []
-        for row in df['LinReg - Echt % MovAvg']:
+#        for row in df['LinReg - Echt % MovAvg']:
+        for row in df['LinReg - Echt %']:
             if math.isnan(row):
                 continue
             name = ''
-            if row == 0:
+            if (row > -0.1) & (row < 0.1):
                 name = 'Neutral'
-            elif row < 0:
+            elif row < -0.1:
                 name = 'Negativ'
             else:
                 name = 'Positiv'
@@ -46,13 +44,10 @@ def get_phases(df):
         for x in phases_col:
             if x['name'] != 'Neutral':
                 phases_notneutral.append(x)
-        for x in phases_col:
             if x['name'] == 'Negativ':
                 phases_negative.append(x)
-        for x in phases_col:
-            if x['name'] != 'Positiv':
+            if x['name'] == 'Positiv':
                 phases_positive.append(x)
-        for x in phases_col:
             if x['name'] == 'Neutral':
                 phases_neutral.append(x)
         phases[column] = {
@@ -86,12 +81,16 @@ def is_linear(df):
     return g1_linear
         
 def is_onelongpeak(df, phases):
-    if len(phases['LinReg - Echt % MovAvg']['negative']) != 1:
+    
+    display(phases['LinReg - Echt % 1 Digit']['negative'])
+    
+    if len(phases['LinReg - Echt % 1 Digit']['negative']) != 1:
         return False
-    if phases['LinReg - Echt % MovAvg']['negative'][0]['length'] < 2:
+    if phases['LinReg - Echt % 1 Digit']['negative'][0]['length'] <= 2:
         return False
     
     alreadyfound = False
+    
     for el in phases['LinReg - Echt % 1 Digit']['negative']:
         if el['length'] >= 2:
             if alreadyfound:
@@ -102,9 +101,11 @@ def is_onelongpeak(df, phases):
         return alreadyfound
 
 def is_oneshortpeak(df, phases):
-    if len(phases['LinReg - Echt % MovAvg']['negative']) != 1:
+    if len(phases['LinReg - Echt % 1 Digit']['negative']) != 1:
+        print("short, false1")
         return False
-    if phases['LinReg - Echt % MovAvg']['negative'][0]['length'] > 2:
+    if phases['LinReg - Echt % 1 Digit']['negative'][0]['length'] > 2:
+        print("short, false2")
         return False
     
     minimum = 0
@@ -122,6 +123,8 @@ def is_oneshortpeak(df, phases):
                 
 
 def is_twolongpeaks(df, phases):
+    if len(phases['LinReg - Echt % 1 Digit']['negative']) > 1:
+        print("two peaks found!")
     return  False
 
 def is_twoshortpeaks(df, phases):
@@ -183,12 +186,10 @@ def display_results(ds):
         plt.subplot(1, 2 ,1)
         df1['LinReg - Echt'] = (df1['Lineare Regression'] - df1['Verkaufsmenge'])
         
-        
        # df1['LinReg - Echt %'] = df1['LinReg - Echt'].divide(df1['Verkaufsmenge'])
         df1['LinReg - Echt %'] = df1['LinReg - Echt'] /((df1['Verkaufsmenge']) + 0.001)
-        
-                
         df1['LinReg - Echt % 1 Digit'] = df1['LinReg - Echt %'].round(1)
+        
         df1['LinReg - Echt % MovAvg'] = df1.rolling(window=3).mean()['LinReg - Echt %'].round(1)
         df1['LinReg - Echt % 1 Digit MovAvg'] = df1.rolling(window=3).mean()['LinReg - Echt % 1 Digit'].round(1)
 
@@ -218,11 +219,11 @@ def display_results(ds):
                             mpatches.Patch(color='blue', label='Wert 0')])
         # fig.suptitle('Trendbestimmung von Artikel %s (%s) ' % (product_id, muster))
         plt.show()
-        # display(df1)
+        display(df1)
         display(categorize(df1))
 
 
-# In[97]:
+# In[57]:
 
 
 ds1 = [{'typ': 'linear steigend',
@@ -236,10 +237,10 @@ ds1 = [{'typ': 'linear steigend',
               'Verkaufsmenge': [100,100,95,100,100,95,105,100,105,100,100,100]}}
       ]
 ds = ds1
-display_results(ds)
+# display_results(ds)
 
 
-# In[65]:
+# In[29]:
 
 
 ds2 = [{'typ': '1 langes Hoch 1',
@@ -253,10 +254,10 @@ ds2 = [{'typ': '1 langes Hoch 1',
               'Verkaufsmenge': [100,100,105,100,95,100,100,120,130,125,120,95]}},
       ]
 ds = ds2
-display_results(ds)
+# display_results(ds)
 
 
-# In[66]:
+# In[30]:
 
 
 ds3 = [{'typ': '1 kurzes Hoch 1',
@@ -270,10 +271,10 @@ ds3 = [{'typ': '1 kurzes Hoch 1',
               'Verkaufsmenge': [100,95,100,105,100,130,120,100,100,105,100,100]}},
       ]
 ds = ds3
-display_results(ds)
+# display_results(ds)
 
 
-# In[67]:
+# In[31]:
 
 
 ds4 = [{'typ': '2 lange Hochs 1',
@@ -288,10 +289,10 @@ ds4 = [{'typ': '2 lange Hochs 1',
        
       ]
 ds = ds4
-display_results(ds)
+# display_results(ds)
 
 
-# In[103]:
+# In[32]:
 
 
 ds5 = [{'typ': '2 kurze Hochs 1',
@@ -305,10 +306,10 @@ ds5 = [{'typ': '2 kurze Hochs 1',
              'Verkaufsmenge': [100,95,100,105,100,120,130,105,100,130,120,100]}},
       ]
 ds = ds5
-display_results(ds)
+# display_results(ds)
 
 
-# In[69]:
+# In[43]:
 
 
 ds6 = [{'typ': '1 Hoch, Lang + Zeroes 1',
@@ -322,10 +323,10 @@ ds6 = [{'typ': '1 Hoch, Lang + Zeroes 1',
              'Verkaufsmenge': [0,0,0,0,0,0,0,0,100,130,100,120]}},
       ]
 ds = ds6
-display_results(ds)
+#display_results(ds)
 
 
-# In[102]:
+# In[34]:
 
 
 ds7 = [{'typ': 'felco 4 16',
@@ -344,10 +345,10 @@ ds7 = [{'typ': 'felco 4 16',
              'Verkaufsmenge': [40,7,65,80,22,43,73,44,41,50,153,79]}},
       ]
 ds = ds7
-display_results(ds)
+# display_results(ds)
 
 
-# In[104]:
+# In[42]:
 
 
 ds8 = [{'typ': '2 hoche Hochs 1',
@@ -364,10 +365,10 @@ ds8 = [{'typ': '2 hoche Hochs 1',
              'Verkaufsmenge': [25,20,9,0,7,15,20,20,15,10,10,25]}},
       ]
 ds = ds8
-display_results(ds)
+#display_results(ds)
 
 
-# In[110]:
+# In[41]:
 
 
 ds9 = [{'typ': '1 langes Hochs 1',
@@ -381,10 +382,10 @@ ds9 = [{'typ': '1 langes Hochs 1',
              'Verkaufsmenge': [210, 250, 200, 90, 10, 0, 0, 10, 50, 100, 105, 110]}},
       ]
 ds = ds9
-display_results(ds)
+#display_results(ds)
 
 
-# In[118]:
+# In[36]:
 
 
 ds10 = [{'typ': '2 kurze Hochs 1',
@@ -392,14 +393,76 @@ ds10 = [{'typ': '2 kurze Hochs 1',
              'Verkaufsmenge': [10,120,130,10,5,0,0,6,0,80,100,20]}},
        {'typ': '2 kurze Hochs 2',
        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-             'Verkaufsmenge': [530,90,10,5,0,3,45,50,450,340,90,220]}},
+             'Verkaufsmenge': [530,90,10,5,0,3,45,450,340,90, 50,220]}},
        {'typ': '2 kurze, flache Hochs mit Null',
        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-             'Verkaufsmenge': [26,19,17,0,10,27,26,17,15,16,16,20]}},
+             'Verkaufsmenge': [26,19,17,5,10,27,26,17,15,16,16,20]}},
        {'typ': '2 kurze, flache Hochs mit 0',
        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-             'Verkaufsmenge': [10,60,90,0,9,5,7,50,90,10,15,10]}},
+             'Verkaufsmenge': [10,60,90,5,9,5,7,50,90,10,15,10]}},
       ]
 ds = ds10
+# display_results(ds)
+
+
+# In[137]:
+
+
+# testdata zur erkennung von langen/kurzen Hochs am Anfang
+# erkennung ist mässig, kurze hochs eher unmöglich
+
+mnt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+ds2 = [{'typ': '1 langes Hoch, deutlich',
+        'd': {'Monat': mnt, 'Verkaufsmenge': [100,180,190,185,120,100,100,95,100,105,100,95]}},
+       {'typ': '1 langes Hoch, flach',
+        'd': {'Monat': mnt,  'Verkaufsmenge': [5,7,7,7,7,5,5,5,5,5,5,5]}},
+       {'typ': '1 kurzes Hoch, deutlich',
+        'd': {'Monat': mnt,  'Verkaufsmenge': [100,120,50,44,45,20,33,27,20,20,25,20]}},
+       {'typ': '1 kurzes Hoch, flach',
+        'd': {'Monat': mnt,  'Verkaufsmenge': [7,7,5,5,5,5,5,5,5,5,5,5]}},
+#       {'typ': '2 lange Hoch',
+#        'd': {'Monat': mnt,
+#              'Verkaufsmenge': [100,150,165,155,95,100,100,100,195,200,190,95]}},
+#       {'typ': '2 kurze Hoch',
+#        'd': {'Monat': mnt,
+#              'Verkaufsmenge': [100,100,165,120,95,100,100,90,150,145,90,95]}},
+      ]
+ds = ds2
 display_results(ds)
+
+
+# In[118]:
+
+
+# testdata erkennen eines langen hoch am anfang
+# versuch mit transformieren der daten
+mnt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+d1 = [140,180,190,185,120,100,100,95,100,105,100,95]
+d2 = [690,970,1040,540,20,3,10,2,4, 10,2,5]
+d3 = [4,2,5,15,10,12,2,1,0,3,2,1]
+
+def transform(data):
+    dx = []
+    mean = np.mean(data)
+    div = 100.0/mean
+    for v in data:
+        if (v >= mean):
+            value = (v-mean)*div
+        else:
+            value = -1*(v-mean)*div
+        res = 0
+        if (value < 10):     res = 0
+        elif (value < 100):  res = 1
+        elif (value < 200):  res = 2
+        elif (value >= 200): res = 3    
+        dx.append(res)
+    return dx
+
+
+ds = [{'typ': '1 langes Hoch am Anfang', 'd': {'Monat': mnt, 'Verkaufsmenge': transform(d1)}},
+      {'typ': '1 langes Hoch extrem',    'd': {'Monat': mnt, 'Verkaufsmenge': transform(d2)}},
+      {'typ': '1 langes Hoch flach',     'd': {'Monat': mnt, 'Verkaufsmenge': transform(d3)}},
+     ]
+
+#display_results(ds)
 
