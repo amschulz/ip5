@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[7]:
 
 
 # %matplotlib notebook
@@ -208,10 +208,28 @@ def is_twoshortpeaks(df, phases, peaks):
     return peak1 or peak2
     '''
 
+def get_group_of_peaks(peaks):
+    real_peaks = []
+    for peak in peaks:
+        if peak['length'] > 1:
+            real_peaks.append(peak)
+    l = len(real_peaks)
+    if l == 0:
+        return 'Gruppe: 1 - Linear'
+    elif l == 1:
+        return 'Gruppe: 2 - 1 Peak'
+    elif l == 2:
+        return 'Gruppe: 3 - 2 Peaks'
+    elif l == 3:
+        return 'Gruppe: 4 - 3 Peaks '
+    else:
+        return 'Gruppe: 5 - Rest'
+    
 def categorize(df):
     printit = False
     peaks = get_peaks(df)
     phases = get_phases(df)
+    return get_group_of_peaks(peaks)
     linear = is_linear(df, phases, peaks)
     onelongpeak = is_onelongpeak(df, phases, peaks)
     oneshortpeak = is_oneshortpeak(df, phases, peaks)
@@ -247,7 +265,7 @@ def categorize(df):
 
 def display_results(ds):
     categories = {}
-    show_prints = False
+    show_prints = True
     for el in ds:
         typ = el['typ']
         d = el['d']
@@ -505,7 +523,7 @@ ds = ds10
 display_results(ds)
 
 
-# In[5]:
+# In[18]:
 
 
 import csv
@@ -548,23 +566,22 @@ def group_by_month1(df):
            'listoflabels': []}
 
 def get_dataframe():
-    df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_050518/Verkaufszahlen_v2.txt',
+    df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_200818/export_august.txt',
                      sep=';',
                      header=0,
                      usecols=[0,6,8,10])
     df = df.rename(index=str, columns={'fk_ArtikelBasis_ID_l':'ArtikelID'})
         
     # remove inactive products
-    df = df[df['Inaktiv_b'] == 'Falsch']
+    # df = df[df['Inaktiv_b'] == 'Falsch']
     # df = df[(df['ArtikelID'].isin([722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]))]
-    # df = df[(df['ArtikelID'].isin([8028]))]
-
+    df = df[(df['ArtikelID'].isin([6383]))]
 
      # convert FaktDatum to datetime
-    df['FaktDatum'] = pd.to_datetime(df['FaktDatum'], errors='coerce')
+    df['FaktDatum'] = pd.to_datetime(df['FaktDatum'], dayfirst=True, errors='raise')
     
     # remove old datasets
-    delta = enddate - timedelta(365 * 5)
+    delta = enddate - timedelta(365 * 3)
     df = df[(df['FaktDatum'] >= delta) & (df['FaktDatum'] < enddate)]
     return df
     
@@ -630,20 +647,15 @@ for i in ids:
         fals = fals + 1
     else:
         correct =  correct + 1
-        if group == 'Gruppe: 6 - Rest':
+        if group == 'Gruppe: 6 - Rest' or group == 'Gruppe: 5 - Rest':
             rest_correct = rest_correct + 1
 
 assert correct + fals == amount        
 
 print('amount: %s' % amount)
 print('correct: %s' % correct)
+print('    davon rest: %s' % rest_correct)
 print('fals: %s' % fals)
 
 print('correctnes: %s' % (correct/amount))
-
-
-# In[7]:
-
-
-rest_correct
 
