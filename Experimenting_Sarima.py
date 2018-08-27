@@ -1,14 +1,16 @@
 
 # coding: utf-8
 
-# In[ ]:
+# In[208]:
 
 
 # %matplotlib notebook
 import numpy as np
 import pandas as pd
+from pandas import DataFrame
 from scipy.stats import norm
 import statsmodels.api as sm
+from statsmodels.tsa.arima_model import ARIMA
 import matplotlib.pyplot as plt
 from datetime import datetime
 import requests
@@ -31,7 +33,7 @@ def get_dataframe():
     return df
 
 
-# In[81]:
+# In[93]:
 
 
 def get_dataframe_SingleArt(filename):
@@ -46,37 +48,133 @@ def get_dataframe_SingleArt(filename):
     return df
 
 
-# In[82]:
+# In[118]:
+
+
+def runStationary(data):
+    #Fit the model 
+    mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(1,0,0)) 
+    res = mod.fit(disp=False) 
+    print(res.summary())
+
+    mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(2,0,0)) 
+    res = mod.fit(disp=False) 
+    print(res.summary())
+
+    mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(0,0,1)) 
+    res = mod.fit(disp=False) 
+    print(res.summary())
+
+    mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(1,0,1)) 
+    res = mod.fit() 
+    print(res.summary())
+
+
+# In[179]:
+
+
+def runARIMA_test(data):
+    #Fit the model 
+   # mod = ARIMA(df['Menge'].astype(np.float64), order=(1,2,1)) 
+   # res = mod.fit(disp=0) 
+   # print(res.summary())
+    p=0
+    q=0
+    d=0
+    pdq=[]
+    aic=[]
+    
+    for p in range(6):
+        for d in range(2):
+            for q in range(4):
+                try:
+                    arima_mod=sm.tsa.ARIMA(df['Menge'].astype(np.float64),(p,d,q)).fit(transparams=True)
+
+                    x=arima_mod.aic
+
+                    x1= p,d,q
+                    print (x1,x)
+
+                    aic.append(x)
+                    pdq.append(x1)
+                except Exception as e:
+                    pass
+                    #print(e)
+    keys = pdq
+    values = aic
+    d = dict(zip(keys, values))
+    print (d)
+
+    minaic=min(d, key=d.get)
+
+    for i in range(3):
+        p=minaic[0]
+        d=minaic[1]
+        q=minaic[2]
+    print (p,d,q)
+
+
+# In[205]:
 
 
 df = get_dataframe_SingleArt('felco2')
+adfstat, pvalue, critvalues, resstore = sm.tsa.stattools.adfuller(df['Menge'], maxlag=1, regression='ct', autolag='AIC', store=True, regresults=False)
+print('felco2:', adfstat)
 
-# Fit the model
-mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(1,1,1))
-res = mod.fit(disp=False)
-print(res.summary())
+df = get_dataframe_SingleArt('aquatexsg201')
+adfstat, pvalue, critvalues, resstore = sm.tsa.stattools.adfuller(df['Menge'], maxlag=1, regression='ct', autolag='AIC', store=True, regresults=False)
+print('aquatexsg201:', adfstat)
+
+df = get_dataframe_SingleArt('bambus1201012')
+adfstat, pvalue, critvalues, resstore = sm.tsa.stattools.adfuller(df['Menge'], maxlag=1, regression='ct', autolag='AIC', store=True, regresults=False)
+print('bambus1201012:', adfstat)
 
 
-# In[83]:
+# In[187]:
 
 
 df = get_dataframe_SingleArt('aquatexsg201')
 
-# Fit the model
-mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(1,1,1))
-res = mod.fit(disp=False)
-print(res.summary())
+#runStationary(df)
+#runARIMA_test(df)
+#Fit the model 
+#mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(1,2,1)) 
+#res = mod.fit(disp=False) 
+#print(res.summary())
 
 
-# In[84]:
+# In[221]:
+
+
+df = get_dataframe_SingleArt('bambus1201012')
+# display(df['Menge'].astype(np.float64))
+
+
+model = sm.tsa.ARIMA(df['Menge'].astype(np.float64), order=(5,1,1))
+model_fit = model.fit()
+print(model_fit.summary())
+
+# plot residual errors
+residuals = DataFrame(model_fit.resid)
+residuals.plot()
+plt.show()
+residuals.plot(kind='kde')
+plt.show()
+print(residuals.describe())
+
+
+# In[110]:
 
 
 df = get_dataframe_SingleArt('bambus1201012')
 
+runStationary(df)
+
 # Fit the model
-mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(1,1,1))
-res = mod.fit(disp=False)
-print(res.summary())
+#mod = sm.tsa.statespace.SARIMAX(df['Menge'], trend='c', order=(1,1,1))
+#res = mod.fit(disp=False)
+#
+#print(res.summary())
 
 
 # In[80]:
