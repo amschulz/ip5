@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[44]:
+# In[ ]:
 
 
 # %matplotlib notebook
@@ -38,7 +38,7 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 
 
-# In[152]:
+# In[ ]:
 
 
 def group_by_frequence(df, frequence='W'):
@@ -211,7 +211,7 @@ def predictModel (mFit, data):
     print('Prediction quality: {:.2f} MSE ({:.2f} RMSE)'.format(mse, math.sqrt(mse)))
 
 
-# In[136]:
+# In[ ]:
 
 
 enddate = date(2018, 1, 1)
@@ -232,7 +232,7 @@ y_test = y_test[1:]
 X_test = y_test.index.map(dt.datetime.toordinal).values.reshape(-1, 1)
 
 
-# In[137]:
+# In[ ]:
 
 
 # Testing: what are the length of the different series
@@ -242,7 +242,7 @@ print ('original len: ', len(y_train))
 print ('differenced:  ', len(np.diff(y_train)))
 
 
-# In[138]:
+# In[ ]:
 
 
 # show training data as graph
@@ -273,7 +273,7 @@ plt.show()
 # orange eine lineare Regression über die Daten.
 
 
-# In[139]:
+# In[ ]:
 
 
 import statsmodels.tsa.api as smt
@@ -335,7 +335,7 @@ plt.tight_layout();
 plt.show()
 
 
-# In[140]:
+# In[ ]:
 
 
 
@@ -356,10 +356,11 @@ if (d > 0):
         adf_test(np.diff(y_diff))
 
 
-# In[133]:
+# In[ ]:
 
 
-calculate_pdq(y_train, 12)
+# calculate_pdq(y_train, 12)
+# Best SARIMAX(0, 1, 1)x(0, 2, 1, 12) model - AIC:1317.2675177190258
 
 
 # In[ ]:
@@ -388,14 +389,14 @@ Q = 0 #             rule 13 ...
 S = 52              # 52 weeks per year
 
 
-# In[144]:
+# In[ ]:
 
 
 eval_pdq_by_example(y_train, p=[0], d=[0,1,2], q=[0,1,2], S=12)
 # Best SARIMAX(0, 0, 0)x(0, 2, 1, 12) model - AIC:1336.8581589556322
 
 
-# In[162]:
+# In[ ]:
 
 
 p = 0
@@ -421,7 +422,7 @@ mFit = evalSarima(y_train, p,d,q, P,D,Q, S)
 predictModel (mFit, df)
 
 
-# In[164]:
+# In[ ]:
 
 
 
@@ -459,301 +460,4 @@ plt.plot(forecast, color='red')
 plt.show()
 
 display(model_fitted.summary())
-
-
-# In[ ]:
-
-
-import itertools
-import sys
-import time
-start = time.time()
-# define the p, d and q parameters to take any value between 0 and 2
-p = d = q = range(0, 4)
-# generate all different combinations of p, d and q triplets
-pdq = list(itertools.product(p, d, q))
-seasonal_pdq = [(x[0], x[1], x[2], 52) for x in list(itertools.product(p, d, q))]
-best_rmse = 10000000000000000000
-best_aic = 10000000000000000000
-best_seasonal_pdq = (-1,-1,-1)
-best_seasonal_pdq_rmse = (-1,-1,-1)
-best_shift = -5
-shifts = [-2, -1, 0, 1, 2]
-for param_seasonal in seasonal_pdq:
-        try:
-            tmp_mdl = sm.tsa.statespace.SARIMAX(y_train,
-                                                order = (0,0,0),
-                                                seasonal_order = param_seasonal,
-                                                enforce_stationarity=True,
-                                                enforce_invertibility=True)
-            res = tmp_mdl.fit()
-            if res.aic < best_aic:
-                best_aic = res.aic
-                best_seasonal_pdq = param_seasonal
-            forecast = res.forecast(len(X_test))
-            y_hat = forecast
-            y_true = y_test
-            for shift in shifts:
-                mse = ((y_hat.shift(shift) - y_true) ** 2).mean()
-                rmse = math.sqrt(mse)
-                if rmse < best_rmse:
-                    best_rmse = rmse
-                    best_seasonal_pdq_rmse = param_seasonal
-                    best_shift = shift
-        except Exception as e:
-            print("Unexpected error: ", e)
-            continue
-end = time.time()
-print('Duration: %s' % (end-start))
-print("Best AIC SARIMAX{}x{} model - AIC:{}".format((0,0,0), best_seasonal_pdq, best_aic))
-# Best SARIMAX(0, 0, 0)x(3, 3, 1, 52)12 model - AIC:4396.615156860976
-print("Best RMSE SARIMAX{}x{} model - RMSE:{}".format((0,0,0), best_seasonal_pdq_rmse, best_rmse))
-
-
-# Bemerkungen: 
-#     1. Mit 3 Jahren Daten kann man nicht wirklich viel anfangen. Die meisten Seasonal-Parameter funktionieren nicht, da nicht genügend Daten vorhanden sind.
-#     2. Für die ACF und PACF gilt die Werte bei Lag 0 zu ignorieren, da diese sowieso immer 1 sein sollten
-
-
-# In[ ]:
-
-
-param = (p, d, q)
-param_seasonal = (P, D, Q, S)
-
-model = sm.tsa.statespace.SARIMAX(y_train,
-                                  order = param,
-                                  seasonal_order = param_seasonal,
-                                  enforce_stationarity=True,
-                                  enforce_invertibility=True)
-model_fitted = model.fit(disp=False)
-forecast = model_fitted.forecast(len(X_test))
-
-# compute the mean square error
-y_hat = forecast
-y_true = y_test
-mse = ((y_hat - y_true) ** 2).mean()
-
-print('Prediction quality: {:.2f} MSE ({:.2f} RMSE)'.format(mse, math.sqrt(mse)))
-
-lastyear = y[date(2016,1,1):date(2016,12,31)]
-plt.figure(figsize=(20,5))
-plt.plot(y_test, color='blue')
-plt.plot(forecast, color='red')
-plt.show()
-
-plt.figure(figsize=(20,5))
-plt.plot(y.index, y)
-
-X_train = y_train.index.map(dt.datetime.toordinal).values.reshape(-1, 1)
-y_train = y_train
-regr = LinearRegression()
-regr.fit(X_train, y_train)
-prediction = regr.predict(X_train)
-plt.plot(X_train, prediction)
-
-
-years = [startdate, date(2015, 1, 1), date(2016, 1, 1), date(2017, 1, 1)]
-for year in years:
-    plt.axvline(x=year, color='black')
-    
-plt.plot(forecast, color='red')
-plt.show()
-
-display(model_fitted.summary())
-
-
-# In[ ]:
-
-
-
-enddate = date(2018, 1, 1)
-default_startdate = date(2010, 1, 1)
-
-def group_by_frequence(df, frequence='W', startdate=default_startdate):
-    df = df.copy()
-    df = df.groupby([pd.Grouper(key='Datum', freq=frequence)])['Menge'].sum().reset_index()
-    idx = pd.date_range(start=startdate, end=enddate, freq=frequence)
-    df.index = pd.DatetimeIndex(df.Datum)
-    df = df.reindex(idx, fill_value=0)
-    return df
-
-def get_dataframe_SingleArt(filename, frequence='W', startdate=default_startdate):
-    df = pd.read_csv(filepath_or_buffer='../Datenexporte/Single/'+filename+'.csv',
-                     sep=';',
-                     header=0,
-                     usecols=[0,1])
-    
-    df['Datum'] = pd.to_datetime(df['Datum'], yearfirst=True, errors='raise')
-
-     # convert FaktDatum to datetime
-    # df.index = pd.DatetimeIndex(df.Datum, yearfirst=True)
-    return group_by_frequence(df, frequence)
-
-def test_params(frequency='MS', maxrange=2, article='bambus1201012', startdate=default_startdate):
-    df = get_dataframe_SingleArt(article, frequency, startdate)
-    df = df.drop(columns=['Datum'])
-    y = df['Menge']
-    if frequency == 'MS':
-        splitdate = date(2016, 12, 1)
-        s = 12
-    elif frequency == 'W':
-        splitdate = date(2016, 12, 25)
-        s = 52
-    y_train = y[:splitdate]
-    y_test = y[splitdate:]
-    y_test = y_test[1:]
-    X_test = y_test.index.map(dt.datetime.toordinal).values.reshape(-1, 1)
-
-    # plt.figure(figsize=(20,5))
-    # plt.plot(y_train.index, y_train)
-
-    X_train = y_train.index.map(dt.datetime.toordinal).values.reshape(-1, 1)
-    y_train = y_train
-    # regr = LinearRegression()
-    # regr.fit(X_train, y_train)
-    # prediction = regr.predict(X_train)
-    # plt.plot(X_train, prediction)
-
-    
-    import itertools
-    import sys
-    import time
-    start = time.time()
-    # define the p, d and q parameters to take any value between 0 and 2
-    p = d = q = range(0, maxrange)
-    # generate all different combinations of p, d and q triplets
-    pdq = list(itertools.product(p, d, q))
-    seasonal_pdq = [(x[0], x[1], x[2], s) for x in list(itertools.product(p, d, q))]
-    
-    best_seasonal_pdq_aic = []
-    best_seasonal_pdq_rmse = []
-    shifts = [-2, -1, 0, 1, 2]
-    
-    for param in pdq:
-        for param_seasonal in seasonal_pdq:
-                try:
-                    tmp_mdl = sm.tsa.statespace.SARIMAX(y_train,
-                                                        order = param,
-                                                        seasonal_order = param_seasonal,
-                                                        enforce_stationarity=True,
-                                                        enforce_invertibility=True)
-                    res = tmp_mdl.fit()
-                    forecast = res.forecast(len(X_test))
-                    y_hat = forecast
-                    y_true = y_test
-                    best_rmse = 100000000000000000000000
-                    for shift in shifts:
-                        mse = ((y_hat.shift(shift) - y_true) ** 2).mean()
-                        rmse = math.sqrt(mse)
-                        if rmse < best_rmse:
-                            best_rmse = rmse
-                            best_shift = shift
-                    
-                    model_data = {'model': '%sx%s' % (param, param_seasonal), 'aic': res.aic,
-                                  'rmse': best_rmse, 'shift': best_shift}
-                    if not best_seasonal_pdq_aic:
-                        best_seasonal_pdq_aic.append(model_data)
-                    else:
-                        for i, model in enumerate(best_seasonal_pdq_aic):
-                            if model['aic'] > model_data['aic']:
-                                best_seasonal_pdq_aic.insert(i, model_data)
-                                best_seasonal_pdq_aic.pop()
-                                break
-
-                            if len(best_seasonal_pdq_aic)  < 3:
-                                best_seasonal_pdq_aic.append(model_data)
-                    if not best_seasonal_pdq_rmse:
-                        best_seasonal_pdq_rmse.append(model_data)
-                    else:                            
-                        for i, model in enumerate(best_seasonal_pdq_rmse):
-                            if model['rmse'] > model_data['rmse']:
-                                best_seasonal_pdq_rmse.insert(i, model_data)
-                                best_seasonal_pdq_rmse.pop()
-                                break
-
-                            if len(best_seasonal_pdq_rmse) < 3:
-                                best_seasonal_pdq_rmse.append(model_data)
-
-                except Exception as e:
-                    print("Unexpected error: ", e)
-                    continue
-    end = time.time()
-    print('Duration: %s' % (end-start))
-    return {'best_aics': best_seasonal_pdq_aic,'best_rmses': best_seasonal_pdq_rmse}
-
-#a = test_params(maxrange=2, article='felco2')
-#b = test_params(maxrange=4, article='felco2')
-
-a = test_params(maxrange=2)
-b = test_params(maxrange=4)
-
-
-# In[ ]:
-
-
-
-print('Maxrange 2 - Best AIC\'s')
-for elem in a['best_aics']:
-    print('Model: {} - AIC: {:.2f} - RMSE(Shift {}): {:.2f}'.format(elem['model'],elem['aic'],elem['shift'],elem['rmse']))
-    
-print('Maxrange 2 - Best RMSE\'s')
-for elem in a['best_rmses']:
-    print('Model: {} - AIC: {:.2f} - RMSE(Shift {}): {:.2f}'.format(elem['model'],elem['aic'],elem['shift'],elem['rmse']))
-
-print('Maxrange 4 - Best AIC\'s')
-for elem in b['best_aics']:
-    print('Model: {} - AIC: {:.2f} - RMSE(Shift {}): {:.2f}'.format(elem['model'],elem['aic'],elem['shift'],elem['rmse']))
-    
-print('Maxrange 4 - Best RMSE\'s')
-for elem in b['best_rmses']:
-    print('Model: {} - AIC: {:.2f} - RMSE(Shift {}): {:.2f}'.format(elem['model'],elem['aic'],elem['shift'],elem['rmse']))
-
-
-# In[44]:
-
-
-
-def plot_forecast(param, param_seasonal, y_train, X_test, y_test):
-    model = sm.tsa.statespace.SARIMAX(y_train,
-                                      order = param,
-                                      seasonal_order = param_seasonal,
-                                      enforce_stationarity=True,
-                                      enforce_invertibility=True)
-    model_fitted = model.fit(disp=False)
-    forecast = model_fitted.forecast(len(X_test))
-
-    # compute the mean square error
-    y_hat = forecast
-    y_true = y_test
-    mse = ((y_hat - y_true) ** 2).mean()
-    print('Prediction quality: {:.2f} RMSE'.format(math.sqrt(mse)))
-    print('AIC: {:.2f} RMSE'.format((model_fitted.aic)))
-    
-    lastyear = y[date(2016,1,1):date(2016,12,31)]
-    plt.figure(figsize=(20,5))
-    plt.plot(y_test, color='blue')
-    plt.plot(forecast, color='red')
-    plt.show()
-
-    plt.figure(figsize=(20,5))
-    plt.plot(y.index, y)
-
-    X_train = y_train.index.map(dt.datetime.toordinal).values.reshape(-1, 1)
-    y_train = y_train
-    regr = LinearRegression()
-    regr.fit(X_train, y_train)
-    prediction = regr.predict(X_train)
-    plt.plot(X_train, prediction)
-
-
-    years = [startdate, date(2015, 1, 1), date(2016, 1, 1), date(2017, 1, 1)]
-    for year in years:
-        plt.axvline(x=year, color='black')
-
-    plt.plot(forecast, color='red')
-    plt.show()
-
-
-plot_forecast((0, 1, 0), (2, 3, 0, 12), y_train, X_test, y_test)
 
