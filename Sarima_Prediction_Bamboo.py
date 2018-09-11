@@ -38,7 +38,7 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 
 
-# In[104]:
+# In[152]:
 
 
 def group_by_frequence(df, frequence='W'):
@@ -113,9 +113,105 @@ def calculate_pdq(y, S):
                 # print("Unexpected error:", sys.exc_info()[0])
                 continue
     print("Best SARIMAX{}x{} model - AIC:{}".format(best_pdq, best_seasonal_pdq, best_aic))
+    
+def eval_pdq_by_example(y, p, d, q, S):
+    # p: list of 0, 1, 2 OR [0]
+    # d: list of 0, 1, 2 OR [0]
+    # q: list of 0, 1, 2 OR [0]
+    
+    # one of q OR q must be [0]
+    if (len(p)>1):
+        q=[0]
+    
+    # generate all different combinations of p, d and q triplets
+    pdq = list(itertools.product(p, d, q))
+
+    # generate all different combinations of seasonal p, q and q triplets
+    seasonal_pdq = [(x[0], x[1], x[2], S) for x in list(itertools.product(p, d, q))]
+    best_aic = np.inf
+    best_pdq = None
+    best_seasonal_pdq = None
+    tmp_model = None
+    best_mdl = None
+
+    for param in pdq:
+        for param_seasonal in seasonal_pdq:
+            # skip, if d and D sum up to more than 2.
+            if(param[1] + param_seasonal[1] < 3):
+                try:
+                    tmp_mdl = sm.tsa.statespace.SARIMAX(y, 
+                                                        order = param,
+                                                        seasonal_order = param_seasonal,
+                                                        enforce_stationarity=True,
+                                                        enforce_invertibility=True)
+                    res = tmp_mdl.fit()
+                    if res.aic < best_aic:
+                        best_aic = res.aic
+                        best_pdq = param
+                        best_seasonal_pdq = param_seasonal
+                        best_mdl = tmp_mdl
+                except:
+                    # print("Unexpected error:", sys.exc_info()[0])
+                    continue
+
+    print("Best SARIMAX{}x{} model - AIC:{}".format(best_pdq, best_seasonal_pdq, best_aic))
+    
+def evalSarima(y, p, d, q, P, D, Q, S):
+    param = (p, d, q)
+    param_seasonal = (P, D, Q, S)
+
+    model = sm.tsa.statespace.SARIMAX(y,
+                                      order = param,
+                                      seasonal_order = param_seasonal,
+                                      enforce_stationarity=True,
+                                      enforce_invertibility=True)
+    res = model.fit(disp=False)
+    print(res.summary())
+
+    res.plot_diagnostics(figsize=(16, 10))
+    plt.tight_layout()
+    plt.show()
+    return res
+    
+def predictModel (mFit, data):
+    # in-sample-prediction and confidence bounds
+    # prediction time range
+    pdate_start = pd.to_datetime('2016-12-31')
+    pdate_end   = pd.to_datetime('2017-12-31')
+    chart_start = pd.to_datetime('2010-12-31')
+
+    pred = mFit.get_prediction(start=pdate_start, 
+                              end=pdate_end,
+                              dynamic=True)
+    pred_ci = pred.conf_int()
+
+    plt.figure(figsize=(20,10))
+    # plot in-sample-prediction
+    yy = data['Menge']
+    ax = yy[chart_start:].plot(label='Observed',color='#006699');
+    pred.predicted_mean.plot(ax=ax, label='One-step Ahead Prediction', alpha=.7, color='#ff0066');
+
+    # draw confidence bound (gray)
+    ax.fill_between(pred_ci.index, 
+                    pred_ci.iloc[:, 0], 
+                    pred_ci.iloc[:, 1], color='#ff0066', alpha=.25);
+
+    # style the plot
+    ax.fill_betweenx(ax.get_ylim(), pdate_start, y.index[-1], alpha=.15, zorder=-1, color='grey');
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Sales')
+    plt.legend(loc='upper left')
+    plt.show()
+
+    y_hat = pred.predicted_mean
+    y_true = y[pdate_start:]
+
+    # compute the mean square error
+    mse = ((y_hat - y_true) ** 2).mean()
+    print('Prediction quality: {:.2f} MSE ({:.2f} RMSE)'.format(mse, math.sqrt(mse)))
 
 
-# In[128]:
+# In[136]:
 
 
 enddate = date(2018, 1, 1)
@@ -136,7 +232,7 @@ y_test = y_test[1:]
 X_test = y_test.index.map(dt.datetime.toordinal).values.reshape(-1, 1)
 
 
-# In[129]:
+# In[137]:
 
 
 # Testing: what are the length of the different series
@@ -146,7 +242,7 @@ print ('original len: ', len(y_train))
 print ('differenced:  ', len(np.diff(y_train)))
 
 
-# In[130]:
+# In[138]:
 
 
 # show training data as graph
@@ -177,7 +273,7 @@ plt.show()
 # orange eine lineare Regression über die Daten.
 
 
-# In[131]:
+# In[139]:
 
 
 import statsmodels.tsa.api as smt
@@ -239,7 +335,7 @@ plt.tight_layout();
 plt.show()
 
 
-# In[132]:
+# In[140]:
 
 
 
@@ -292,85 +388,44 @@ Q = 0 #             rule 13 ...
 S = 52              # 52 weeks per year
 
 
-# In[134]:
+# In[144]:
+
+
+eval_pdq_by_example(y_train, p=[0], d=[0,1,2], q=[0,1,2], S=12)
+# Best SARIMAX(0, 0, 0)x(0, 2, 1, 12) model - AIC:1336.8581589556322
+
+
+# In[162]:
 
 
 p = 0
-d = 1
-q = 1
+d = 0
+q = 0
 
 P = 0
-D = 2
+D = 1
 Q = 1
 
 S = 12
 
-param = (p, d, q)
-param_seasonal = (P, D, Q, S)
+# D=1:
+# Prediction quality: 48254119.50 MSE (6946.52 RMSE)
+# AIC                           1577.019
 
-model = sm.tsa.statespace.SARIMAX(y_train,
-                                  order = param,
-                                  seasonal_order = param_seasonal,
-                                  enforce_stationarity=True,
-                                  enforce_invertibility=True)
-res = model.fit(disp=False)
-print(res.summary())
+# D=2:
+# Prediction quality: 66291174.93 MSE (8141.94 RMSE)
+# AIC                           1336.858
 
-res.plot_diagnostics(figsize=(16, 10))
-plt.tight_layout()
-plt.show()
+# rising d, results in poor large term prediction.
+mFit = evalSarima(y_train, p,d,q, P,D,Q, S)
+predictModel (mFit, df)
 
 
-# In[ ]:
+# In[164]:
 
 
 
-
-
-# In[127]:
-
-
-# in-sample-prediction and confidence bounds
-# prediction time range
-pdate_start = pd.to_datetime('2016-12-31')
-pdate_end   = pd.to_datetime('2017-12-31')
-chart_start = pd.to_datetime('2010-12-31')
-
-pred = res.get_prediction(start=pdate_start, 
-                          end=pdate_end,
-                          dynamic=True)
-pred_ci = pred.conf_int()
- 
-# plot in-sample-prediction
-yy = df['Menge']
-ax = yy[chart_start:].plot(label='Observed',color='#006699');
-pred.predicted_mean.plot(ax=ax, label='One-step Ahead Prediction', alpha=.7, color='#ff0066');
- 
-# draw confidence bound (gray)
-ax.fill_between(pred_ci.index, 
-                pred_ci.iloc[:, 0], 
-                pred_ci.iloc[:, 1], color='#ff0066', alpha=.25);
- 
-# style the plot
-ax.fill_betweenx(ax.get_ylim(), pdate_start, y.index[-1], alpha=.15, zorder=-1, color='grey');
-ax.set_xlabel('Date')
-ax.set_ylabel('Sales')
-plt.legend(loc='upper left')
-plt.show()
-
-y_hat = pred.predicted_mean
-y_true = y[pdate_start:]
- 
-# compute the mean square error
-mse = ((y_hat - y_true) ** 2).mean()
-print('Prediction quality: {:.2f} MSE ({:.2f} RMSE)'.format(mse, math.sqrt(mse)))
-
-
-# In[125]:
-
-
-
-forecast = model_fitted.forecast(len(X_test))
+forecast = mFit.forecast(len(X_test))
 
 # compute the mean square error
 y_hat = forecast
