@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[11]:
+# In[3]:
 
 
 from sklearn.linear_model import LinearRegression
@@ -295,4 +295,131 @@ ds5 = [{'typ': '2 kurze Hochs 1',
       ]
 ds = ds5
 display_results(ds)
+
+
+# In[36]:
+
+
+def display_results2(ds, title):
+    handles = []
+    for i, el in enumerate(ds):
+        typ = el['typ']
+        d = el['d']
+        color = el['color']
+        df1 = pd.DataFrame(data=d)
+        regr = LinearRegression()
+        X_train = df1['Monat']
+        y_train = df1['Verkaufsmenge']
+        X_train = X_train.values.reshape(12, 1)
+        y_train = y_train.values.reshape(12, 1)
+
+        #fig = plt.figure(figsize=(20, 5))
+        #plt.subplot(1, i+1, 1)
+
+        plt.plot(X_train, y_train,  color=color)
+        handles.append(mpatches.Patch(color=color, label=typ))
+    plt.yticks(np.arange(0, 150, 10))
+    plt.xticks(np.arange(1, 13, 1))
+    plt.ylabel('Verkaufsmenge')
+    plt.xlabel('Monate des Jahres')
+    plt.legend(handles=handles)
+    plt.title(title)
+    # plt.subplot(1, 2 ,2)
+    plt.show()
+ds1 = [{'typ': 'linear steigend',
+        'color': 'black',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,100,110,110,120,125,130,130,140,145,150,150]}},
+       {'typ': 'linear fallend',
+        'color': 'orange',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,100,95,90,80,80,75,70,65,60,60,50]}},
+       {'typ': 'linear stabil',
+        'color': 'blue',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,100,95,100,100,95,105,100,105,100,100,100]}}
+      ]
+ds = ds1
+display_results2(ds, 'Lineare Gruppe')
+
+
+# In[39]:
+
+
+ds2 = [{'typ': '1 langer Peak am Jahresanfang',
+        'color': 'black',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,120,120,130,120,100,100,95,100,105,110,95]}},
+       {'typ': '1 langer Peak in der Jahresmitte',
+        'color': 'orange',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,95,100,130,130,140,120,95,100,105,100,95]}},
+       {'typ': '1 langer Peak am Jahresende',
+        'color': 'blue',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,100,105,100,95,100,100,120,130,125,120,95]}},
+      ]
+ds = ds2
+display_results2(ds, 'Gruppe mit einem langen Peak')
+
+
+# In[40]:
+
+
+ds3 = [{'typ': '1 kurzer Peak am Jahresanfang',
+        'color': 'black',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,120,130,105,100,100,95,100,100,105,100,100]}},
+       {'typ': '1 kurzer Peak in der Jahresmitte',
+        'color': 'orange',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,100,95,105,100,100,95,100,100,130,120,100]}},
+       {'typ': '1 kurzer Peak am Jahresende',
+        'color': 'blue',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,95,100,105,100,130,120,100,100,105,100,100]}},
+      ]
+ds = ds3
+display_results2(ds, 'Gruppe mit einem kurzen Peak')
+
+
+# In[44]:
+
+
+ds4 = [{'typ': '2 lange Peaks im Frühling und Herbst',
+        'color': 'black',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100,120,120,130,120,100,100,110,130,120,130,100]}},
+       {'typ': '2 lange Peaks im Winter und Herbst',
+        'color': 'orange',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [120,120,130,100,95,100,100,110,130,130,120,100]}},
+       {'typ': '2 lange Peaks im späten Frühling und Herbst',
+        'color': 'blue',
+        'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+              'Verkaufsmenge': [100, 100,120,120,130,120,100,110,130,120,120,100]}},
+       
+      ]
+ds = ds4
+display_results2(ds, 'Zwei lange Peaks')
+
+
+# In[45]:
+
+
+ds5 = [{'typ': '2 kurze Peaks im Winter und Spätherbst',
+        'color': 'black',
+       'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+             'Verkaufsmenge': [100,120,130,105,100,95,95,105,100,130,120,100]}},
+       {'typ': '2 kurze Peaks im Frühling und Spätsommer',
+        'color': 'orange',
+       'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+             'Verkaufsmenge': [100,100,95,120,130,95,120,130,100,95,95,100]}},
+       {'typ': '2 kurze Peaks im Sommer und Spätherbst',
+        'color': 'blue',
+       'd': {'Monat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+             'Verkaufsmenge': [100,95,100,105,100,120,130,105,100,130,120,100]}},
+      ]
+ds = ds5
+display_results2(ds, 'Zwei kurze Peaks')
 
