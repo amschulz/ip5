@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[142]:
+# In[252]:
 
 
 import pandas as pd
@@ -12,9 +12,11 @@ from datetime import date
 from statsmodels.tsa.stattools import adfuller
 import math
 import itertools
+import matplotlib.patches as mpatches
+import statistics
 
 
-# In[156]:
+# In[257]:
 
 
 default_startdate = date(2010, 1, 1)
@@ -74,7 +76,7 @@ def eval_pdq_by_example(maxparam,
     param_q = [q] if q != -1 else range(0,maxparam)
     param_P = [P] if P != -1 else range(0,maxparam)
     param_D = [D] if D != -1 else range(0,maxparam)
-    param_Q = [D] if Q != -1 else range(0,maxparam)
+    param_Q = [Q] if Q != -1 else range(0,maxparam)
     param_S = [S] if S != -1 else range(0,maxparam)
     
     
@@ -86,7 +88,16 @@ def eval_pdq_by_example(maxparam,
     best_mdl = None
     
     for param in params:
+        d = param[1]
+        if d >= 3:
+            continue
         for param_seasonal in seasonal_params:
+            D = param_seasonal[1]
+            if D:
+                param = (param[0], 0, param[2])
+                d = 0
+            if (D + d) >= 3:
+                continue
             try:
                 tmp_mdl = sm.tsa.statespace.SARIMAX(y_train, 
                                                     order = param,
@@ -132,8 +143,8 @@ def get_best_model(y_train):
     
     known_params['d'] = d
     # get acf-data and pacf-data. The critical borders are also part of the return value!
-    acf = sm.tsa.stattools.acf(y_train_stationary, nlags=36, alpha=0.1)
-    pacf = sm.tsa.stattools.pacf(y_train_stationary, nlags=36, alpha=0.1)
+    acf = sm.tsa.stattools.acf(y_train_stationary, nlags=36, alpha=0.5)
+    pacf = sm.tsa.stattools.pacf(y_train_stationary, nlags=36, alpha=0.5)
     
     # for every element in acf[1]: Subtract the actual-value of the element in acf[1]
     # To get the critical values above and below for the acf-values
@@ -234,7 +245,7 @@ def get_best_model(y_train):
     
     
     # display(known_params)
-    results = eval_pdq_by_example(maxparam=4, y_train=y_train_stationary, **known_params)
+    results = eval_pdq_by_example(maxparam=4, y_train=y_train, **known_params)
     results['Known Params'] = ' '.join(list(known_params.keys()))
     return results
     #param = (p, d, q)
@@ -245,22 +256,23 @@ def get_best_model(y_train):
     #                                 enforce_stationarity=False,
     #                                 enforce_invertibility=False)
 
-def get_rmse(test, forecast):
-    alternative_rmse_data = []
+def get_quality(test, forecast):
+    percantege_error = []
     test_without_0 = test[test != 0.0]
     default_for_0 = np.min(test_without_0) if len(test_without_0) > 6 else 1
     for i,v in enumerate(test):
         # print('Test-Value %s - Forecast-Value %s' % (v, forecast[i]))
-        alternative_rmse_data.append(math.sqrt(((forecast[i] / max(v, default_for_0)) - 1)**2))
-
-    alternative_rmse = sum(alternative_rmse_data) / float(len(alternative_rmse_data))
+        percantege_error.append(math.sqrt(((forecast[i] / max(v, default_for_0)) - 1)**2))
+    mape = sum(percantege_error) / float(len(percantege_error))
+    median = statistics.median(percantege_error)
     # mse = ((test - forecast) ** 2).mean()
     # original_rmse = math.sqrt(mse)
     # print('alternative_rmse: %s - alternativ_rmse2: %s original_rmse: %s' %  (alternative_rmse, alternative_rmse2, original_rmse))
-    return alternative_rmse
+    return {'mape': mape,
+            'median': median}
 
 
-# In[160]:
+# In[258]:
 
 
 ids = [722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]
@@ -269,12 +281,12 @@ end = date(2018, 1, 1)
 df = get_dataframe()
 
 
-# In[161]:
+# In[259]:
 
 
 rmses = np.array([])
 articleIds = df['ArtikelID'].unique()
-results_df = pd.DataFrame(columns=['ArtikelID', 'Skipped', 'Error', 'RMSE', 'TrainData Mean', 'aic', 'Known Params',
+results_df = pd.DataFrame(columns=['ArtikelID', 'Skipped', 'Error', 'Mape', 'Median', 'TrainData Mean', 'aic', 'Known Params',
                                    'p','d','q','P','D','Q','S',
                                   ])
 for articleId in articleIds:
@@ -322,10 +334,12 @@ for articleId in articleIds:
     #rmses = np.append(rmses, [get_rmse(y_test, pred.predicted_mean) / y_train.mean()])
     #print('RMSE; %s' % get_rmse(y_test, pred))
     #print('Mean; %s' % y_train.mean())
+    quality = get_quality(y_test, pred)
     results = {'ArtikelID': articleId, 
                                     'Skipped': False,
                                     'Error': False, 
-                                    'RMSE': get_rmse(y_test, pred),
+                                    'Median': quality['median'],
+                                    'Mape': quality['mape'],
                                     'TrainData Mean': y_train.mean(),
                                     'aic': res['aic'],
                                     'Known Params': res['Known Params']
@@ -339,98 +353,97 @@ for articleId in articleIds:
     results.update(res['paramter'])
     results_df = results_df.append(results,
                                    ignore_index=True)
-    rmses = np.append(rmses, [get_rmse(y_test, pred) / y_train.mean()])
+    rmses = np.append(rmses, [quality['mape'] / y_train.mean()])
     # display('RMSE: %s - Mean: %s' % (get_rmse(y_test, pred), y_train.mean()))
 results_df = results_df.set_index('ArtikelID')
-results_df['RMSE / TrainData Mean'] = results_df['RMSE'] / results_df['TrainData Mean']
 #display('RMSE Mean: %s' % (np.mean(rmses)))
 
 
-# In[162]:
+# In[260]:
 
 
 import datetime
-display(results_df['RMSE'].mean())
+print('Mape-Mean: %s' % results_df['Mape'].mean())
+print('Median-Mean: %s' % results_df['Median'].mean())
 display(results_df)
 outputfile = 'SARIMA_Pipeline_%s.csv' % (datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 results_df.to_csv(path_or_buf='outputs/%s' % outputfile,
                      sep=';')
 
 
-# In[135]:
+# In[249]:
 
 
-df = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-10-01_22-50-32.csv',
+id = 722
+print('p: %s' % results_df['p'][id])
+print('d: %s' % results_df['d'][id])
+print('q: %s' % results_df['q'][id])
+print('P: %s' % results_df['P'][id])
+print('D: %s' % results_df['D'][id])
+print('Q: %s' % results_df['Q'][id])
+print('S: %s' % results_df['S'][id])
+
+
+# In[241]:
+
+
+df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-10-26_14-56-13.csv',
                  sep=';',
                  header=0)
-# display(df)
-display(df[(df['RMSE / TrainData Mean'] > 0.3) & (df['RMSE / TrainData Mean'] < 2)])
+df_read = results_df
+df_read['ArtikelID'] = df_read.index
+display(df_read)
+# display(df[(df['RMSE / TrainData Mean'] > 0.3) & (df['RMSE / TrainData Mean'] < 2)])
 
 
-# In[164]:
+# In[243]:
 
 
-results_df[results_df['RMSE']<1]
-
-
-# In[62]:
-
-
-articleIds = df['ArtikelID'].unique()
-for articleId in articleIds:
-    dfTemporary = df[(df['ArtikelID'].isin([articleId]))]
+start = date(2010, 1, 1)
+end = date(2017, 1, 1)
+def show_article_details(id=''):
+    orig_df = get_dataframe([id])
+    dfTemporary = orig_df[(orig_df['ArtikelID'].isin([id]))]
     dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
     dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
     dfTemporary = dfTemporary.drop(columns=['Datum'])
-    y = dfTemporary['Menge']
-    y_train = y[:date(2016,12,31)]
-    X_train = y_train.index
-    y_test = y[date(2017,1,1):]
-    X_test = y_test.index
-    model = get_best_model(y_train)
-    fitted_model = model.fit()
-    #pred = fitted_model.get_prediction(dynamic=False,
-    #                                   steps=12,
-    #                                   start=pd.to_datetime('2016-12-01'),
-    #                                   end=pd.to_datetime('2017-12-31'))
-    pred2 = fitted_model.forecast(dynamic=True, steps=12)
+    # display(dfTemporary)
     plt.figure(figsize=(20,5))
-    plt.plot(y[date(2016,1,1):date(2016,12,31)], color='orange')
-    plt.plot(y[date(2015,1,1):date(2015,12,31)], color='orange')
-    plt.plot(pred2, color='red')
-    plt.plot(y_test, color='blue')
-    # plt.plot(pred.predicted_mean, color='green')
+    plt.plot(dfTemporary['Menge'])
+    
+    plt.title('Verkaufszahlen Artikel %s von %s bis %s' % (id, start, end))
     plt.show()
-    display(y[date(2015,11,1):date(2015,12,31)])
-    display(y[date(2016,11,1):date(2016,12,31)])
-    display(pred2[date(2017,11,1):date(2017,12,31)])
-    display(pred.predicted_mean[date(2017,11,1):date(2017,12,31)])
-    break
+    
+    article_df = df_read[df_read['ArtikelID']== id]
+    # display(article_df)
+    index = article_df.index[0]
+    test_data = []
+    forecast_data = []
+    for i in range(1, 13):
+        test_data.append(article_df['Test M%s' % i][index])
+        forecast_data.append(article_df['Forecast M%s' %i ][index])
+    #print('Test')
+    #print(test_data)
+    #print ('Forecast')
+    #print (forecast_data)
+    plt.title('Artikel %s im 2017' % id)
+    plt.plot(test_data, color='blue')
+    plt.plot(forecast_data, color='black')
+    plt.legend(handles=[
+                    mpatches.Patch(color='blue', label='Test-Daten'),
+                    mpatches.Patch(color='black', label='Forecast'),
+                   ])
+    plt.show()
+    print('Mape: %s' % article_df['Mape'][index])
+    print('Median: %s' % article_df['Median'][index])
+    print('Known Params: %s' % article_df['Known Params'][index])
+    print('p: %s' % article_df['p'][index])
+    print('d: %s' % article_df['d'][index])
+    print('q: %s' % article_df['q'][index])
+    print('P: %s' % article_df['P'][index])
+    print('D: %s' % article_df['D'][index])
+    print('Q: %s' % article_df['Q'][index])
+    print('S: %s' % article_df['S'][index])
 
-
-# In[2]:
-
-
-plt.plot([65,46,51])
-plt.plot([50,96,68])
-plt.show()
-
-
-# In[158]:
-
-
-for articleId in articleIds:
-    dfTemporary = df[(df['ArtikelID'].isin([articleId]))]
-    dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
-    dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
-    dfTemporary = dfTemporary.drop(columns=['Datum'])
-    y = dfTemporary['Menge']
-    y_train = y[:date(2016,12,31)]
-    X_train = y_train.index
-    y_test = y[date(2017,1,1):]
-    X_test = y_test.index
-    display(y_train)
-    diffed = np.diff(y_train)
-    display(np.asarray(diffed).shape[0])
-    break
+show_article_details(722)
 
