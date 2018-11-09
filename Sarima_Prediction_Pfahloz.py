@@ -38,7 +38,7 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 
 
-# In[46]:
+# In[2]:
 
 
 def group_by_frequence(df, frequence='W'):
@@ -211,14 +211,15 @@ def predictModel (mFit, data):
     print('Prediction quality: {:.2f} MSE ({:.2f} RMSE)'.format(mse, math.sqrt(mse)))
 
 
-# In[47]:
+# In[3]:
 
 
 enddate = date(2018, 1, 1)
 startdate = date(2010, 1, 1)
 
 # load data from file
-df = get_dataframe_SingleArt('felco2','M')
+df = get_dataframe_SingleArt('bambus1201012','M')
+df = get_dataframe_SingleArt('pfahloz30047_grow','M')
 
 # prepare data
 df = df.drop(columns=['Datum'])
@@ -232,7 +233,7 @@ y_test = y_test[1:]
 X_test = y_test.index.map(dt.datetime.toordinal).values.reshape(-1, 1)
 
 
-# In[48]:
+# In[4]:
 
 
 # Testing: what are the length of the different series
@@ -242,7 +243,7 @@ print ('original len: ', len(y_train))
 print ('differenced:  ', len(np.diff(y_train)))
 
 
-# In[49]:
+# In[5]:
 
 
 # show training data as graph
@@ -273,7 +274,7 @@ plt.show()
 # orange eine lineare Regression über die Daten.
 
 
-# In[50]:
+# In[6]:
 
 
 import statsmodels.tsa.api as smt
@@ -335,7 +336,7 @@ plt.tight_layout();
 plt.show()
 
 
-# In[51]:
+# In[7]:
 
 
 
@@ -356,84 +357,70 @@ if (d > 0):
         adf_test(np.diff(y_diff))
 
 
-# In[ ]:
+# In[193]:
 
 
-#calculate_pdq(y_train, 12)
-#Best SARIMAX(0, 1, 1)x(1, 2, 1, 12) model - AIC:618.6424779676563
+# calculate_pdq(y_train, 12)
+# Best SARIMAX(0, 1, 1)x(0, 2, 1, 12) model - AIC:1317.2675177190258
 
 
-# In[52]:
+# In[194]:
 
 
-eval_pdq_by_example(y_train, p=[0], d=[0,1,2], q=[0,1,2], S=12)
+# results for pfahloz
+
+# monthly  (estimated parameters)
+#      SARIMAX(0, 1, 1)x(1, 1, 0, 12) - AIC:  1550.284
+# Best SARIMAX(0, 1, 1)x(0, 2, 1, 12) - AIC:  1317.2675 (calculated)
 
 
-# In[ ]:
-
-
-# results for felco
-
-# weekly
-#(0,0,1)(1,0,0,52) AIC  3048.007
-#(0,0,1)(2,1,1,52) AIC  2570.698 ## << best
-
-# monthly
-#Best SARIMAX(0, 1, 1)x(1, 2, 1, 12) model - AIC:618.6424779676563
-
-# eval by charts, monthly
+# estimation on weekly data
 # ARIMA (p d q)
-p = 0 # AR part       rule 6: PACF lag 1 is negative. No AR
-d = 1 # Differencing  adf says stationary, BUT acf drop not after 1
+p = 0 # AR part       rule 6: PACF on differeced data cuts of after 0
+d = 0 # Differencing  augmented dickie fuller test
 q = 1 # MA part       rule 7: ACF of differenced data lag-1 is negative
 
 # Seasonal (P, D, Q, S)
 P = 1 #             rule 13: lag 52 is positive, add SAR
-D = 1 # diff        rule 12: series has seasonal pattern
+D = 1 # diff        rule 12: series has a strong seasonal pattern
 Q = 0 #             rule 13 ...
-S = 12              # 12 month per year
+S = 52              # 52 weeks per year
 
 
-# In[54]:
+# In[8]:
+
+
+eval_pdq_by_example(y_train, p=[0,1,2], d=[0,1,2], q=[0], S=12)
+# Best SARIMAX(0, 0, 0)x(0, 2, 1, 12) model - AIC:1336.8581589556322
+
+
+# In[9]:
 
 
 p = 0
 d = 0
 q = 0
 
-P = 0
+P = 1
 D = 2
-Q = 1
+Q = 0
 
 S = 12
 
+# D=1:
+# Prediction quality: 48254119.50 MSE (6946.52 RMSE)
+# AIC                           1577.019
+
+# D=2:
+# Prediction quality: 66291174.93 MSE (8141.94 RMSE)
+# AIC                           1336.858
+
+# rising d, results in poor large term prediction.
 mFit = evalSarima(y_train, p,d,q, P,D,Q, S)
 predictModel (mFit, df)
 
 
-# In[ ]:
-
-
-# ARIMA prediction, not very useful so far
-param = (10,0,0)
-arima = ARIMA(y_train.astype('float32'), param, 
-              exog=None, dates=None, 
-              freq=None, missing='none')
-res_arima = arima.fit()
-print(res_arima.summary())
-
-pdate_start = pd.to_datetime('2016-12-31')
-pdate_end   = pd.to_datetime('2017-12-31')
-chart_start = pd.to_datetime('2010-12-31')
-
-fig, ax = plt.subplots()
-yy = df['Menge']
-ax = yy[chart_start:].plot(ax=ax)
-fig = res_arima.plot_predict(pdate_start, pdate_end, dynamic=True, ax=ax, plot_insample=False)
-plt.show()
-
-
-# In[58]:
+# In[11]:
 
 
 
