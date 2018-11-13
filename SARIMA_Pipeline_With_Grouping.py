@@ -120,7 +120,7 @@ def getSeasonalDifferencing (series, S):
         seasonal_series = np.append(seasonal_series, [series[i+S]-series[i]])
         i = i + 1
     
-    data, D = dickey_fuller(seasonal_series, 1)
+    data, D = dickey_fuller(seasonal_series, 0)
     return D
     
 
@@ -257,9 +257,9 @@ def get_best_model(y_train):
     S = 12
     
      # evaluate differencing, Seasonality and Seasonal Diff.
-    xx, d = dickey_fuller(y_train, 0)
     S = getSeasonality(y_train)
     D = getSeasonalDifferencing(y_train, 0, S)
+    xx, d = dickey_fuller(y_train, 0)
     
     # id d + D > 2 then set d = 0
     if (d+D >2): d=0
@@ -267,6 +267,7 @@ def get_best_model(y_train):
     known_params['D'] = D
     known_params['S'] = S
     
+    # evaluate p, q (ARIMA Part)
     
     # get acf-data and pacf-data. The critical borders are also part of the return value!
     acf  = sm.tsa.stattools.acf (y_train_stationary, nlags=36, alpha=0.5)
@@ -390,7 +391,7 @@ def get_quality(test, forecast):
             'median': median}
 
 
-# In[169]:
+# In[276]:
 
 
 # load one, examine ACF and PACF 
@@ -401,7 +402,7 @@ start = date(2010, 1, 1)
 end = date(2018, 1, 1)
 
 #define id to calculate (single examination)
-artId = [223]
+artId = [5151]
 
 # load and group data to monthly
 frame = get_dataframe(artId)
@@ -470,14 +471,14 @@ def predictModel (mFit, data):
     
 
 
-# In[270]:
+# In[277]:
 
 
 # Example code to evaluate a single art for differencing:
 
 
 # load and group data to monthly
-aid = 324
+aid = 5151
 g = group_by_frequence(get_dataframe([aid]))
 data = g.drop(columns=['Datum'])
 
@@ -664,19 +665,19 @@ print('Q: %s' % results_df['Q'][id])
 print('S: %s' % results_df['S'][id])
 
 
-# In[6]:
+# In[279]:
 
 
-df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-10-26_14-56-13.csv',
+df_read = pd.read_csv(filepath_or_buffer='../Datenexporte/SARIMA_Pipeline_2018-10-30_17-21-15.csv',
                  sep=';',
                  header=0)
-df_read = results_df
-df_read['ArtikelID'] = df_read.index
+#df_read = results_df
+#df_read['ArtikelID'] = df_read.index
 display(df_read)
 # display(df[(df['RMSE / TrainData Mean'] > 0.3) & (df['RMSE / TrainData Mean'] < 2)])
 
 
-# In[ ]:
+# In[280]:
 
 
 start = date(2010, 1, 1)
@@ -725,6 +726,6 @@ def show_article_details(id=''):
     print('Q: %s' % article_df['Q'][index])
     print('S: %s' % article_df['S'][index])
 
-show_article_details(722)
+show_article_details(5151)
 
 
