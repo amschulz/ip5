@@ -1,26 +1,88 @@
 
 # coding: utf-8
 
-# In[252]:
+# In[1]:
 
 
 import pandas as pd
 import numpy as np
-import statsmodels.api as sm
 import matplotlib.pyplot as plt
-from datetime import date
+
+import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller
+
 import math
 import itertools
 import matplotlib.patches as mpatches
 import statistics
 
+from datetime import date
+from scipy import signal
+from statsmodels.tsa.seasonal import seasonal_decompose
 
-# In[257]:
+
+# In[2]:
 
 
 default_startdate = date(2010, 1, 1)
 default_enddate = date(2018, 1, 1)
+
+# performs Augmented Dickey Fuller test
+# params: training set data, current value for d (count of differencing)
+# returns Tupel of stationary data and d
+def dickey_fuller(data, d):
+    dftest = adfuller(data, autolag='AIC')
+    adf_val = dftest[0]
+    
+    if math.isnan(adf_val):
+        return (data, 0)
+    
+    if adf_val < dftest[4]['5%']:
+        # is stationary
+        return (data, d)
+    else:
+        #not stationary -> differencing.
+        data = np.diff(data)
+        d = d+1
+        data, d = dickey_fuller (data, d)
+        # limit to 2, there should never be more than 2x differencing
+        # results in loss of quality for prediction
+        if (d >= 2):
+            return (data, d)
+    return (data, d)
+
+
+# get ACF values for y, find seasonality pattern
+# returns calculated Vlaue for S
+def getSeasonality(series):
+    result = seasonal_decompose(series, model='additive')
+    #print(result.trend)
+    #print(result.seasonal)
+    #print(result.resid)
+    #print(result.observed)
+    
+    seasonal = [round(j*100) for i, j in enumerate(result.seasonal)]
+    peak = max(seasonal)
+    res = [i for i, j in enumerate(seasonal) if j == peak]
+
+    S = 0
+    if len(res)>1 :
+        S=res[1]-res[0]
+        
+    return S
+    
+# calculate differenced Seasonal series and perform Dickey Fuller
+# Returns seasonal differencing D
+def getSeasonalDifferencing (series, S):
+    seasonal_series = np.array([])
+    max_l = len(series)
+    i = 0
+    while max_l > (i+S):
+        seasonal_series = np.append(seasonal_series, [series[i+S]-series[i]])
+        i = i + 1
+    
+    data, D = dickey_fuller(seasonal_series, 0)
+    return D
 
 def group_by_frequence(df,
                        frequence='MS',
@@ -137,11 +199,21 @@ def get_best_model(y_train):
     D = 0
     Q = 0
     S = 12
-    y_train_stationary, d = getStationaryData(y_train)
-    if y_train_stationary is None and d == -1:
-        return {'model': None}
+        
+     # evaluate differencing, Seasonality and Seasonal Diff.
+    xx, d = dickey_fuller(y_train, 0)
+    S = getSeasonality(y_train)
+    D = getSeasonalDifferencing(y_train, S)
     
+    # id d + D > 2 then set d = 0
+    if (d+D >2): d=0
     known_params['d'] = d
+    known_params['D'] = D
+    known_params['S'] = S
+    
+    if S != 12:
+        return {'model': {}}
+    """
     # get acf-data and pacf-data. The critical borders are also part of the return value!
     acf = sm.tsa.stattools.acf(y_train_stationary, nlags=36, alpha=0.5)
     pacf = sm.tsa.stattools.pacf(y_train_stationary, nlags=36, alpha=0.5)
@@ -245,7 +317,8 @@ def get_best_model(y_train):
     
     
     # display(known_params)
-    results = eval_pdq_by_example(maxparam=4, y_train=y_train, **known_params)
+    """
+    results = eval_pdq_by_example(maxparam=3, y_train=y_train, **known_params)
     results['Known Params'] = ' '.join(list(known_params.keys()))
     return results
     #param = (p, d, q)
@@ -272,16 +345,17 @@ def get_quality(test, forecast):
             'median': median}
 
 
-# In[258]:
+# In[3]:
 
 
 ids = [722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]
+#ids = [722, 3986, 7979, 7612]
 start = date(2010, 1, 1)
 end = date(2018, 1, 1)
-df = get_dataframe()
+df = get_dataframe([722, 3986])
 
 
-# In[259]:
+# In[4]:
 
 
 rmses = np.array([])
@@ -359,7 +433,7 @@ results_df = results_df.set_index('ArtikelID')
 #display('RMSE Mean: %s' % (np.mean(rmses)))
 
 
-# In[260]:
+# In[5]:
 
 
 import datetime
@@ -369,81 +443,4 @@ display(results_df)
 outputfile = 'SARIMA_Pipeline_%s.csv' % (datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 results_df.to_csv(path_or_buf='outputs/%s' % outputfile,
                      sep=';')
-
-
-# In[249]:
-
-
-id = 722
-print('p: %s' % results_df['p'][id])
-print('d: %s' % results_df['d'][id])
-print('q: %s' % results_df['q'][id])
-print('P: %s' % results_df['P'][id])
-print('D: %s' % results_df['D'][id])
-print('Q: %s' % results_df['Q'][id])
-print('S: %s' % results_df['S'][id])
-
-
-# In[241]:
-
-
-df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-10-26_14-56-13.csv',
-                 sep=';',
-                 header=0)
-df_read = results_df
-df_read['ArtikelID'] = df_read.index
-display(df_read)
-# display(df[(df['RMSE / TrainData Mean'] > 0.3) & (df['RMSE / TrainData Mean'] < 2)])
-
-
-# In[243]:
-
-
-start = date(2010, 1, 1)
-end = date(2017, 1, 1)
-def show_article_details(id=''):
-    orig_df = get_dataframe([id])
-    dfTemporary = orig_df[(orig_df['ArtikelID'].isin([id]))]
-    dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
-    dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
-    dfTemporary = dfTemporary.drop(columns=['Datum'])
-    # display(dfTemporary)
-    plt.figure(figsize=(20,5))
-    plt.plot(dfTemporary['Menge'])
-    
-    plt.title('Verkaufszahlen Artikel %s von %s bis %s' % (id, start, end))
-    plt.show()
-    
-    article_df = df_read[df_read['ArtikelID']== id]
-    # display(article_df)
-    index = article_df.index[0]
-    test_data = []
-    forecast_data = []
-    for i in range(1, 13):
-        test_data.append(article_df['Test M%s' % i][index])
-        forecast_data.append(article_df['Forecast M%s' %i ][index])
-    #print('Test')
-    #print(test_data)
-    #print ('Forecast')
-    #print (forecast_data)
-    plt.title('Artikel %s im 2017' % id)
-    plt.plot(test_data, color='blue')
-    plt.plot(forecast_data, color='black')
-    plt.legend(handles=[
-                    mpatches.Patch(color='blue', label='Test-Daten'),
-                    mpatches.Patch(color='black', label='Forecast'),
-                   ])
-    plt.show()
-    print('Mape: %s' % article_df['Mape'][index])
-    print('Median: %s' % article_df['Median'][index])
-    print('Known Params: %s' % article_df['Known Params'][index])
-    print('p: %s' % article_df['p'][index])
-    print('d: %s' % article_df['d'][index])
-    print('q: %s' % article_df['q'][index])
-    print('P: %s' % article_df['P'][index])
-    print('D: %s' % article_df['D'][index])
-    print('Q: %s' % article_df['Q'][index])
-    print('S: %s' % article_df['S'][index])
-
-show_article_details(722)
 
