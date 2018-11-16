@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[5]:
 
 
 import pandas as pd
@@ -21,11 +21,11 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[2]:
+# In[6]:
 
 
 default_startdate = date(2010, 1, 1)
-default_enddate = date(2018, 1, 1)
+default_enddate = date(2018, 10, 1)
 
 # performs Augmented Dickey Fuller test
 # params: training set data, current value for d (count of differencing)
@@ -98,7 +98,7 @@ def group_by_frequence(df,
     return df
 
 def get_dataframe(ids_to_track=[]):
-    df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_200818/export_august.txt',
+    df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_161118/export_november_16.txt',
                      sep=';',
                      header=0,
                      usecols=[0,6,8,10])
@@ -213,111 +213,7 @@ def get_best_model(y_train):
     
     if S != 12:
         return {'model': {}}
-    """
-    # get acf-data and pacf-data. The critical borders are also part of the return value!
-    acf = sm.tsa.stattools.acf(y_train_stationary, nlags=36, alpha=0.5)
-    pacf = sm.tsa.stattools.pacf(y_train_stationary, nlags=36, alpha=0.5)
-    
-    # for every element in acf[1]: Subtract the actual-value of the element in acf[1]
-    # To get the critical values above and below for the acf-values
-    acf_value = acf[0]
-    acf_limit_below = [(x[0] - acf_value[i]) for i, x in enumerate(acf[1].tolist())]
-    acf_limit_above = [(x[1] - acf_value[i]) for i, x in enumerate(acf[1].tolist())]
-    # Same for pacf
-    pacf_value = pacf[0]
-    pacf_limit_below =[(x[0] - pacf_value[i]) for i, x in enumerate(pacf[1].tolist())]
-    pacf_limit_above = [(x[1] - pacf_value[i]) for i, x in enumerate(pacf[1].tolist())]
-    
-    # get all lags where the acf value is above (+) or below (-) of the critical value.
-    acf_peaks = [i for i, x in enumerate(acf_value) if (x < acf_limit_below[i] or x > acf_limit_above[i])]
-    pacf_peaks = [i for i, x in enumerate(pacf_value) if (x < pacf_limit_below[i] or x > pacf_limit_above[i])]
-    # Don't use peak 0 because it's always 1
-    acf_peaks = acf_peaks[1:]
-    pacf_peaks = pacf_peaks[1:]
-    #display(acf_peaks)
-    #display(pacf_peaks)
-    
-    #plt.plot(acf_limit_below)
-    #plt.plot(acf_limit_above)
-    #plt.plot(acf_value, color='red')
-    #plt.title('ACF')
-    #plt.show()
-    
-    #plt.plot(pacf_limit_below)
-    #plt.plot(pacf_limit_above)
-    #plt.plot(pacf_value, color='red')
-    #plt.title('PACF')
-    #plt.show()
 
-
-    if 12 in acf_peaks and 12 in pacf_peaks:
-        known_params['S'] = 12
-        known_params['p'] = 0
-        known_params['q'] = 0
-        
-    else:
-        known_params['S'] = 0
-        known_params['P'] = 0
-        known_params['D'] = 0
-        known_params['Q'] = 0
-    
-    # Create numpy array out of the acf-values
-    np_acf = np.array(acf_value)
-    # square it to remove negative values and take the square-root afterwards
-    np_acf_square = np.square(np_acf)
-    np_acf = np.sqrt(np_acf_square)
-    
-    # difference it so we can search for big decreases ("cut-off")
-    differenced_acf = np.diff(np_acf[:-1])
-    
-    # Same process for pacf
-    np_pacf = np.array(pacf_value)
-    np_pacf_square = np.square(np_pacf)
-    np_pacf = np.sqrt(np_pacf_square)
-    differenced_pacf = np.diff(np_pacf[:-1])
-    
-    # look for big decreases in acf-values
-    big_decrease_acf = np.where(differenced_acf < -0.15)
-    big_decrease_pacf = np.where(differenced_pacf < -0.15)
-    cutoff_x_acf = -1
-    
-    # sometimes 0 is also in the big-decrease acf. We have to ignore it
-    if len(big_decrease_acf) == 1 and big_decrease_acf[0][0] != 0:
-        cutoff_x_acf = big_decrease_acf[0][0]
-    elif len(big_decrease_acf) == 2:
-        cutoff_x_acf = big_decrease_acf[0][1]
-        
-    # if there is a big decrease in acf
-    if cutoff_x_acf != -1:
-        # check if all lags before the cutoff-value are above the critical values.
-        for lag in range(0,cutoff_x_acf+1):
-            if lag not in acf_peaks:
-                break
-        else:
-            if len(big_decrease_pacf) == 0:
-                print('---------------SET PQ 1')
-                known_params['q'] = cutoff_x_acf
-                known_params['p'] = 0
-
-    # same for pacf values
-    cutoff_x_pacf = -1     
-    if len(big_decrease_pacf) == 1 and big_decrease_pacf[0][0] != 0:
-        cutoff_x_pacf = big_decrease_pacf[0][0]
-    elif len(big_decrease_pacf) == 2:
-        cutoff_x_pacf = big_decrease_pacf[0][1]
-    if cutoff_x_pacf != -1:
-        for lag in range(0,cutoff_x_pacf+1):
-            if lag not in pacf_peaks:
-                break
-        else:
-            if len(big_decrease_acf) == 0:
-                print('---------------SET PQ 2')
-                known_params['q'] = 0
-                known_params['p'] = cutoff_x_pacf
-    
-    
-    # display(known_params)
-    """
     results = eval_pdq_by_example(maxparam=3, y_train=y_train, **known_params)
     results['Known Params'] = ' '.join(list(known_params.keys()))
     return results
@@ -345,17 +241,18 @@ def get_quality(test, forecast):
             'median': median}
 
 
-# In[3]:
+# In[7]:
 
 
 ids = [722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]
 #ids = [722, 3986, 7979, 7612]
 start = date(2010, 1, 1)
-end = date(2018, 1, 1)
+end = date(2018, 10, 1)
 df = get_dataframe([722, 3986])
+display(df)
 
 
-# In[4]:
+# In[8]:
 
 
 rmses = np.array([])
@@ -369,9 +266,9 @@ for articleId in articleIds:
     dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
     dfTemporary = dfTemporary.drop(columns=['Datum'])
     y = dfTemporary['Menge']
-    y_train = y[:date(2016,12,31)]
+    y_train = y[:date(2017,12,31)]
     X_train = y_train.index
-    y_test = y[date(2017,1,1):date(2017,12,31)]
+    y_test = y[date(2018,1,1):date(2018,10,28)]
     X_test = y_test.index
     res = get_best_model(y_train)
     model = res['model']
@@ -388,7 +285,7 @@ for articleId in articleIds:
         #                                    steps=12,
         #                                   start=pd.to_datetime('2016-12-01'),
         #                                   end=pd.to_datetime('2017-12-31'))
-        pred = fitted_model.forecast(dynamic=True, steps=12)
+        pred = fitted_model.forecast(dynamic=True, steps=10)
         for i,v in enumerate(pred):
             if v < 0:
                 pred[i] = 0
@@ -433,7 +330,7 @@ results_df = results_df.set_index('ArtikelID')
 #display('RMSE Mean: %s' % (np.mean(rmses)))
 
 
-# In[5]:
+# In[9]:
 
 
 import datetime

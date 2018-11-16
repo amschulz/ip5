@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[82]:
+# In[127]:
 
 
 import pandas as pd
@@ -21,11 +21,11 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[83]:
+# In[128]:
 
 
 default_startdate = date(2010, 1, 1)
-default_enddate = date(2018, 1, 1)
+default_enddate = date(2018, 10, 1)
 
 def group_by_frequence(df,
                        frequence='MS',
@@ -41,7 +41,7 @@ def group_by_frequence(df,
     return df
 
 def get_dataframe(ids_to_track=[]):
-    df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_200818/export_august.txt',
+    df = pd.read_csv(filepath_or_buffer='Datenexporte/Datenexport_161118/export_november_16.txt',
                      sep=';',
                      header=0,
                      usecols=[0,6,8,10])
@@ -82,10 +82,10 @@ def get_ma(ser, w=2):
     
 
 
-# In[84]:
+# In[129]:
 
 
-df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-11_00-58-37.csv',
+df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-16_10-43-18.csv',
                  sep=';',
                  header=0,
                  index_col=0)
@@ -98,16 +98,16 @@ df_read = df_read.drop(columns=['Mape', 'Median', 'TrainData Mean'])
 #display(df_hortima.loc[[1744, 1357, 1676, 2355, 4810]])
 
 
-# In[85]:
+# In[135]:
 
 
 for i in range(1,13):
     df_read['Hortima M%s' % str(i)] = df_hortima[str(i)]
     
-# display(df_read.head())
+#display(df_read.head())
 
 
-# In[86]:
+# In[131]:
 
 
 artIds = df_read.index
@@ -126,7 +126,7 @@ for ind, artId in enumerate(artIds):
     test_data = []
     forecast_data = []
     hortima_data= []
-    for i in range(1, 13):
+    for i in range(1, 11):
         test_data.append(df_read['Test M%s' % i][artId])
         forecast_data.append(df_read['Forecast M%s' % i][artId])
         hortima_data.append(df_read['Hortima M%s' % i][artId])
@@ -182,14 +182,14 @@ df_read = df_read[df_read['Error'] == False]
 display(df_read.head())
 
 
-# In[87]:
+# In[132]:
 
 
 checkdf = df_read.isna()
 df_read = df_read[checkdf['MA Median Hortima'] == False]
 
 
-# In[126]:
+# In[133]:
 
 
 print('Analyse')
@@ -217,11 +217,11 @@ for col in df_read.columns:
         plt.show()
 
 
-# In[6]:
+# In[145]:
 
 
 start = date(2010, 1, 1)
-end = date(2017, 1, 1)
+end = date(2018, 1, 1)
 def show_article_details(id=''):
     orig_df = get_dataframe([id])
     dfTemporary = orig_df[(orig_df['ArtikelID'].isin([id]))]
@@ -234,20 +234,23 @@ def show_article_details(id=''):
     
     plt.title('Verkaufszahlen Artikel %s von %s bis %s' % (id, start, end))
     plt.show()
-    
-    article_df = df_read[df_read['ArtikelID']== id]
+    df_read_article = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-16_10-43-18.csv',
+                     sep=';',
+                     header=0,
+                     index_col=0)
+    article_df = df_read_article[df_read_article.index== id]
     # display(article_df)
     index = article_df.index[0]
     test_data = []
     forecast_data = []
-    for i in range(1, 13):
+    for i in range(1, 11):
         test_data.append(article_df['Test M%s' % i][index])
         forecast_data.append(article_df['Forecast M%s' %i ][index])
     #print('Test')
     #print(test_data)
     #print ('Forecast')
     #print (forecast_data)
-    plt.title('Artikel %s im 2017' % id)
+    plt.title('Artikel %s im 2018' % id)
     plt.plot(test_data, color='blue')
     plt.plot(forecast_data, color='black')
     plt.legend(handles=[
@@ -266,5 +269,5 @@ def show_article_details(id=''):
     print('Q: %s' % article_df['Q'][index])
     print('S: %s' % article_df['S'][index])
 
-show_article_details(6673)
+show_article_details(722)
 
