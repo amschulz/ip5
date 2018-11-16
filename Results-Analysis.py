@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[97]:
+# In[82]:
 
 
 import pandas as pd
@@ -21,7 +21,7 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[98]:
+# In[83]:
 
 
 default_startdate = date(2010, 1, 1)
@@ -82,7 +82,7 @@ def get_ma(ser, w=2):
     
 
 
-# In[99]:
+# In[84]:
 
 
 df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-11_00-58-37.csv',
@@ -98,7 +98,7 @@ df_read = df_read.drop(columns=['Mape', 'Median', 'TrainData Mean'])
 #display(df_hortima.loc[[1744, 1357, 1676, 2355, 4810]])
 
 
-# In[100]:
+# In[85]:
 
 
 for i in range(1,13):
@@ -107,7 +107,7 @@ for i in range(1,13):
 # display(df_read.head())
 
 
-# In[101]:
+# In[86]:
 
 
 artIds = df_read.index
@@ -170,29 +170,50 @@ for ind, artId in enumerate(artIds):
 
 df_read = df_read.drop(columns=drop_col)
 df_read['MA Median Forecast'] = ma_median
-df_read['MA Mape Forecast'] = ma_mape
 df_read['MA Median Hortima'] = ma_median_hortima
+df_read['MA Mape Forecast'] = ma_mape
 df_read['MA Mape Hortima'] = ma_mape_hortima
 df_read['Median Forecast'] = median
-df_read['Mape Forecast'] = mape
 df_read['Median Hortima'] = median_hortima
+df_read['Mape Forecast'] = mape
 df_read['Mape Hortima'] = mape_hortima
-df_read[df_read['Skipped']== True]
-df_read[df_read['Error']== True]
+df_read = df_read[df_read['Skipped'] == False]
+df_read = df_read[df_read['Error'] == False]
 display(df_read.head())
 
 
-# In[102]:
+# In[87]:
+
+
+checkdf = df_read.isna()
+df_read = df_read[checkdf['MA Median Hortima'] == False]
+
+
+# In[126]:
 
 
 print('Analyse')
 for col in df_read.columns:
     if 'Median' in col or 'Mape' in col:
         an_col = df_read[col]
-        an_col.dropna()
-        plt.title(col)
-        plt.boxplot(boxplot_median, showfliers=False)
-        plt.boxplot(boxplot_median, showfliers=True)
+        # an_col = an_col.dropna()
+        t = '\n'.join(
+            ('Anzahl Werte: %s' % len(an_col),
+             'Anzahl Werte x > 1: %s' % len(an_col[an_col > 1]),
+             'Anzahl Werte 1 >= x > 0.5 : %s' % len(an_col[(an_col > 0.5) & (an_col <= 1)]),
+             'Anzahl Werte 0.5 >= x: %s' % len(an_col[an_col <= 0.5])
+            )
+        )
+        f, ax = plt.subplots(1, 3)
+        f.set_size_inches(20, 4)
+        ax[0].boxplot(an_col, showfliers=False)
+        ax[0].set_title('Boxplot %s ohne Ausreisser' % col)
+        ax[1].boxplot(an_col, showfliers=True)
+        ax[1].set_title('Boxplot %s mit Ausreisser' % col)
+        ax[2].text(0.05, 0.6,t,fontsize=16,)
+        ax[2].get_xaxis().set_ticks([])
+        ax[2].get_yaxis().set_ticks([])
+
         plt.show()
 
 
