@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[127]:
+# In[54]:
 
 
 import pandas as pd
@@ -21,7 +21,7 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[128]:
+# In[55]:
 
 
 default_startdate = date(2010, 1, 1)
@@ -62,7 +62,7 @@ def get_dataframe(ids_to_track=[]):
 def get_quality(test, forecast):
     percantege_error = []
     test_without_0 = test[test != 0.0]
-    default_for_0 = np.min(test_without_0) if len(test_without_0) > 6 else 1
+    default_for_0 = np.min(test_without_0) if len(test_without_0) > 5 else 0.1
     for i,v in enumerate(test):
         # print('Test-Value %s - Forecast-Value %s' % (v, forecast[i]))
         percantege_error.append(math.sqrt(((forecast[i] / max(v, default_for_0)) - 1)**2))
@@ -82,10 +82,10 @@ def get_ma(ser, w=2):
     
 
 
-# In[129]:
+# In[56]:
 
 
-df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-16_10-43-18.csv',
+df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-17_03-01-09.csv',
                  sep=';',
                  header=0,
                  index_col=0)
@@ -98,7 +98,7 @@ df_read = df_read.drop(columns=['Mape', 'Median', 'TrainData Mean'])
 #display(df_hortima.loc[[1744, 1357, 1676, 2355, 4810]])
 
 
-# In[135]:
+# In[57]:
 
 
 for i in range(1,13):
@@ -107,7 +107,7 @@ for i in range(1,13):
 #display(df_read.head())
 
 
-# In[131]:
+# In[58]:
 
 
 artIds = df_read.index
@@ -182,19 +182,19 @@ df_read = df_read[df_read['Error'] == False]
 display(df_read.head())
 
 
-# In[132]:
+# In[59]:
 
 
 checkdf = df_read.isna()
 df_read = df_read[checkdf['MA Median Hortima'] == False]
 
 
-# In[133]:
+# In[60]:
 
 
 print('Analyse')
 for col in df_read.columns:
-    if 'Median' in col or 'Mape' in col:
+    if 'Mape' in col:
         an_col = df_read[col]
         # an_col = an_col.dropna()
         t = '\n'.join(
@@ -217,35 +217,62 @@ for col in df_read.columns:
         plt.show()
 
 
-# In[145]:
+# In[61]:
+
+
+df_better_ma_mape = df_read[df_read['MA Mape Forecast'] < df_read['MA Mape Hortima']]
+df_better_mape = df_read[df_read['Mape Forecast'] < df_read['Mape Hortima']]
+display(df_better_ma_mape.head())
+display(len(df_better_ma_mape))
+display(df_better_ma_mape.head())
+display(len(df_better_mape))
+# display(len(df_read[(df_read['MA Mape Forecast'] <= df_read['MA Mape Hortima']) & df_read['Mape Forecast'] <= df_read['Mape Hortima']]))
+
+
+# In[62]:
+
+
+df_mape_below_05 = df_read[df_read['Mape Forecast'] < 0.5]
+display(df_mape_below_05)
+
+
+# In[63]:
 
 
 start = date(2010, 1, 1)
 end = date(2018, 1, 1)
-def show_article_details(id=''):
-    orig_df = get_dataframe([id])
-    dfTemporary = orig_df[(orig_df['ArtikelID'].isin([id]))]
-    dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
-    dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
-    dfTemporary = dfTemporary.drop(columns=['Datum'])
-    # display(dfTemporary)
-    plt.figure(figsize=(20,5))
-    plt.plot(dfTemporary['Menge'])
-    
-    plt.title('Verkaufszahlen Artikel %s von %s bis %s' % (id, start, end))
-    plt.show()
-    df_read_article = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-16_10-43-18.csv',
+def show_article_details(id='', showPrams=False, showPreviousDataPlot=False):
+    if showPreviousDataPlot:
+        orig_df = get_dataframe([id])
+        dfTemporary = orig_df[(orig_df['ArtikelID'].isin([id]))]
+        dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
+        dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
+        dfTemporary = dfTemporary.drop(columns=['Datum'])
+        # display(dfTemporary)
+        plt.figure(figsize=(20,5))
+        plt.plot(dfTemporary['Menge'])
+
+        plt.title('Verkaufszahlen Artikel %s von %s bis %s' % (id, start, end))
+        plt.show()
+        
+    df_read_article = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-17_03-01-09.csv',
                      sep=';',
                      header=0,
                      index_col=0)
+    df_hortima = pd.read_csv(filepath_or_buffer='outputs/Prognose_Hortima_2018.csv',
+                         sep=';',
+                         header=0,
+                         index_col=0)
     article_df = df_read_article[df_read_article.index== id]
     # display(article_df)
     index = article_df.index[0]
     test_data = []
     forecast_data = []
+    hortima_data = []
     for i in range(1, 11):
         test_data.append(article_df['Test M%s' % i][index])
         forecast_data.append(article_df['Forecast M%s' %i ][index])
+        hortima_data.append(df_hortima[str(i)][index])
     #print('Test')
     #print(test_data)
     #print ('Forecast')
@@ -253,21 +280,30 @@ def show_article_details(id=''):
     plt.title('Artikel %s im 2018' % id)
     plt.plot(test_data, color='blue')
     plt.plot(forecast_data, color='black')
+    plt.plot(hortima_data, color='orange')
     plt.legend(handles=[
                     mpatches.Patch(color='blue', label='Test-Daten'),
                     mpatches.Patch(color='black', label='Forecast'),
+                    mpatches.Patch(color='orange', label='Hortima Forecast'),
+
                    ])
     plt.show()
-    print('Mape: %s' % article_df['Mape'][index])
-    print('Median: %s' % article_df['Median'][index])
-    print('Known Params: %s' % article_df['Known Params'][index])
-    print('p: %s' % article_df['p'][index])
-    print('d: %s' % article_df['d'][index])
-    print('q: %s' % article_df['q'][index])
-    print('P: %s' % article_df['P'][index])
-    print('D: %s' % article_df['D'][index])
-    print('Q: %s' % article_df['Q'][index])
-    print('S: %s' % article_df['S'][index])
+    if showPrams:
+        print('Known Params: %s' % article_df['Known Params'][index])
+        print('p: %s' % article_df['p'][index])
+        print('d: %s' % article_df['d'][index])
+        print('q: %s' % article_df['q'][index])
+        print('P: %s' % article_df['P'][index])
+        print('D: %s' % article_df['D'][index])
+        print('Q: %s' % article_df['Q'][index])
+        print('S: %s' % article_df['S'][index])
 
-show_article_details(722)
+show_article_details(4592, True, True)
+
+
+# In[64]:
+
+
+for index, row in df_mape_below_05.iterrows(): 
+    show_article_details(index, False, False)
 
