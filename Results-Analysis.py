@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[54]:
+# In[1]:
 
 
 import pandas as pd
@@ -21,7 +21,7 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[55]:
+# In[2]:
 
 
 default_startdate = date(2010, 1, 1)
@@ -59,13 +59,17 @@ def get_dataframe(ids_to_track=[]):
 
 
 
-def get_quality(test, forecast):
+def get_quality(test, forecast, printPER=False):
     percantege_error = []
     test_without_0 = test[test != 0.0]
-    default_for_0 = np.min(test_without_0) if len(test_without_0) > 5 else 0.1
+    #default_for_0 = np.min(test_without_0) if len(test_without_0) > 5 else 0.1
+    mean = test.mean()
+    default_for_0 =  mean / 10 if mean else 0.1
     for i,v in enumerate(test):
         # print('Test-Value %s - Forecast-Value %s' % (v, forecast[i]))
         percantege_error.append(math.sqrt(((forecast[i] / max(v, default_for_0)) - 1)**2))
+    if printPER:
+        print('PER: %s' % percantege_error)
     mape = sum(percantege_error) / float(len(percantege_error))
     median = statistics.median(percantege_error)
     # mse = ((test - forecast) ** 2).mean()
@@ -82,7 +86,7 @@ def get_ma(ser, w=2):
     
 
 
-# In[56]:
+# In[3]:
 
 
 df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_2018-11-17_03-01-09.csv',
@@ -98,7 +102,7 @@ df_read = df_read.drop(columns=['Mape', 'Median', 'TrainData Mean'])
 #display(df_hortima.loc[[1744, 1357, 1676, 2355, 4810]])
 
 
-# In[57]:
+# In[4]:
 
 
 for i in range(1,13):
@@ -107,7 +111,7 @@ for i in range(1,13):
 #display(df_read.head())
 
 
-# In[58]:
+# In[5]:
 
 
 artIds = df_read.index
@@ -177,19 +181,21 @@ df_read['Median Forecast'] = median
 df_read['Median Hortima'] = median_hortima
 df_read['Mape Forecast'] = mape
 df_read['Mape Hortima'] = mape_hortima
+print('Amount of articles skipped: %s' % len(df_read[df_read['Skipped'] == True]))
+print('Amount of articles with errors:  %s' % len(df_read[df_read['Error'] == True]))
 df_read = df_read[df_read['Skipped'] == False]
 df_read = df_read[df_read['Error'] == False]
 display(df_read.head())
 
 
-# In[59]:
+# In[6]:
 
 
 checkdf = df_read.isna()
 df_read = df_read[checkdf['MA Median Hortima'] == False]
 
 
-# In[60]:
+# In[7]:
 
 
 print('Analyse')
@@ -217,7 +223,7 @@ for col in df_read.columns:
         plt.show()
 
 
-# In[61]:
+# In[8]:
 
 
 df_better_ma_mape = df_read[df_read['MA Mape Forecast'] < df_read['MA Mape Hortima']]
@@ -229,14 +235,14 @@ display(len(df_better_mape))
 # display(len(df_read[(df_read['MA Mape Forecast'] <= df_read['MA Mape Hortima']) & df_read['Mape Forecast'] <= df_read['Mape Hortima']]))
 
 
-# In[62]:
+# In[9]:
 
 
 df_mape_below_05 = df_read[df_read['Mape Forecast'] < 0.5]
 display(df_mape_below_05)
 
 
-# In[63]:
+# In[11]:
 
 
 start = date(2010, 1, 1)
@@ -297,13 +303,18 @@ def show_article_details(id='', showPrams=False, showPreviousDataPlot=False):
         print('D: %s' % article_df['D'][index])
         print('Q: %s' % article_df['Q'][index])
         print('S: %s' % article_df['S'][index])
+        series_test = pd.Series(test_data)
+        series_forecast = pd.Series(forecast_data)
+        series_hortima = pd.Series(hortima_data)
+        print('Quality: %s' % get_quality(series_test, series_forecast, True))
 
-show_article_details(4592, True, True)
+show_article_details(5797, True, True)
 
 
-# In[64]:
+# In[77]:
 
 
-for index, row in df_mape_below_05.iterrows(): 
+df_mape_below_05 = df_mape_below_05.sort_values('Mape Forecast')
+for index, row in df_mape_below_05.iterrows():
     show_article_details(index, False, False)
 
