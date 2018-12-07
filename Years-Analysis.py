@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[33]:
+# In[1]:
 
 
 import pandas as pd
@@ -21,17 +21,20 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[34]:
+# In[2]:
 
 
-default_startdate = date(2015, 10, 1)
+default_startdate = date(2015, 1, 1)
 default_enddate = date(2018, 10, 1)
 
 # performs Augmented Dickey Fuller test
 # params: training set data, current value for d (count of differencing)
 # returns Tupel of stationary data and d
 def dickey_fuller(data, d):
-    dftest = adfuller(data, autolag='AIC')
+    try:
+        dftest = adfuller(data, autolag='AIC')
+    except ValueError as e:
+        return (None, None)
     adf_val = dftest[0]
     
     if math.isnan(adf_val):
@@ -47,7 +50,7 @@ def dickey_fuller(data, d):
         data, d = dickey_fuller (data, d)
         # limit to 2, there should never be more than 2x differencing
         # results in loss of quality for prediction
-        if (d >= 2):
+        if (d and d >= 2):
             return (data, d)
     return (data, d)
 
@@ -167,7 +170,6 @@ def eval_pdq_by_example(maxparam,
                                                     enforce_stationarity=True,
                                                     enforce_invertibility=True)
                 res = tmp_mdl.fit()
-                print('Model (%s)x(%s) - AIC: %s' % (param, param_seasonal, res.aic))
                 if res.aic < best_aic:
                     best_aic = res.aic
                     best_pdq = param
@@ -203,8 +205,12 @@ def get_best_model(y_train):
         
      # evaluate differencing, Seasonality and Seasonal Diff.
     xx, d = dickey_fuller(y_train, 0)
+    if xx is None and d is None:
+        return {'model': {}}
     S = getSeasonality(y_train)
     D = getSeasonalDifferencing(y_train, S)
+    if not D:
+        return {'model': {}}
     
     # id d + D > 2 then set d = 0
     if (d+D >2): d=0
@@ -242,34 +248,113 @@ def get_quality(test, forecast):
             'median': median}
 
 
-# In[35]:
+# In[3]:
 
 
-ids = [722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]
-#ids = [722, 3986, 7979, 7612]
-start = date(2015, 10, 1)
+start = date(2015, 1, 1)
 end = date(2018, 10, 1)
 df = get_dataframe()
 
 
-# In[38]:
+# In[ ]:
 
 
-rmses = np.array([])
-articleIds = df['ArtikelID'].unique()
+import datetime
+#indices = top50_articles.index.values.tolist()
+indices = [982,6058,3188,2818,3212,6364,4740,3597,4739,1651,239,4737,3337,136,1060,4175,4738,6365,4861,88,4863,3218,5148,
+           8109,5671,2276,3139,8554,876,4741,3453,1519,5080,3229,3986,4791,4948,4980,1061,92,4981,91,4890,677,1653,1649,93,
+           4250,3335,3582]
+years_to_compare = range(3,11)
+for ye in years_to_compare:
+    ty = 2018
+    s = date(ty - ye, 1, 1)
+    ed = date(ty, 10, 1)
+    
+    df = get_dataframe(indices)
+    rmses = np.array([])
+    articleIds = df['ArtikelID'].unique()
+    results_df = pd.DataFrame(columns=['ArtikelID', 'Skipped', 'Error', 'Mape', 'Median', 'TrainData Mean', 'aic', 'Known Params',
+                                       'p','d','q','P','D','Q','S',
+                                      ])
+    for articleId in articleIds:
+        dfTemporary = df[(df['ArtikelID'].isin([articleId]))]
+        dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
+        dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=s, enddate=ed)
+        dfTemporary = dfTemporary.drop(columns=['Datum'])
+        y = dfTemporary['Menge']
+        y_train = y[:date(2017,12,31)]
+        X_train = y_train.index
+        y_test = y[date(2018,1,1):date(2018,10,28)]
+        X_test = y_test.index
+        res = get_best_model(y_train)
+        model = res['model']
+        if (model is None) or ( not model):
+            display('Skipped %s' % articleId)
+            results_df = results_df.append({'ArtikelID': articleId, 
+                                            'Skipped': True,
+                                            'Error': False},
+                                           ignore_index=True)
+            continue
+        try:
+            fitted_model = model.fit()
+            #pred = fitted_model.get_prediction(dynamic=False,
+            #                                    steps=12,
+            #                                   start=pd.to_datetime('2016-12-01'),
+            #                                   end=pd.to_datetime('2017-12-31'))
+            pred = fitted_model.forecast(dynamic=True, steps=10)
+            for i,v in enumerate(pred):
+                if v < 0:
+                    pred[i] = 0
+        except Exception as e:
+            print('Exception at Article %s: %s' % (articleId, e))
+            print(model)
+            results_df = results_df.append({'ArtikelID': articleId, 
+                                            'Skipped': False,
+                                            'Error': True},
+                                           ignore_index=True)
+            continue
+        #plt.figure(figsize=(20,5))
+        #display(pred)
+        #display(y_test)
+        #plt.plot(pred, color='red')
+        #plt.plot(y_test, color='blue')
+        #plt.show()
+        #rmses = np.append(rmses, [get_rmse(y_test, pred.predicted_mean) / y_train.mean()])
+        #print('RMSE; %s' % get_rmse(y_test, pred))
+        #print('Mean; %s' % y_train.mean())
+        quality = get_quality(y_test, pred)
+        results = {'ArtikelID': articleId, 
+                                        'Skipped': False,
+                                        'Error': False, 
+                                        'Median': quality['median'],
+                                        'Mape': quality['mape'],
+                                        'TrainData Mean': y_train.mean(),
+                                        'aic': res['aic'],
+                                        'Known Params': res['Known Params']
+                                        }
 
-sum_article = pd.DataFrame(columns=['SUM', 'ArtikelID'])
+        # add data to results df
+        for i, x in enumerate(y_test):
+            results['Test M%s' % (i + 1)] = x
+        for i, x in enumerate(pred):
+            results['Forecast M%s' % (i + 1)] = x 
+        results.update(res['paramter'])
+        results_df = results_df.append(results,
+                                       ignore_index=True)
+        rmses = np.append(rmses, [quality['mape'] / y_train.mean()])
+        # display('RMSE: %s - Mean: %s' % (get_rmse(y_test, pred), y_train.mean()))
+    results_df = results_df.set_index('ArtikelID')
+    #display('RMSE Mean: %s' % (np.mean(rmses)))
+    print('Mape-Mean %s: %s' % (results_df['Mape'].mean(),ye))
+    print('Median-Mean %s: %s' % (results_df['Median'].mean(),ye))
+    display(results_df)
+    outputfile = 'SARIMA_Pipeline_%s_Jahre_v2.csv' % (ye)
+    results_df.to_csv(path_or_buf='outputs/%s' % outputfile,
+                         sep=';')
 
-for articleId in articleIds:
-    dfTemporary = df[(df['ArtikelID'].isin([articleId]))]
-    dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
-    dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
-    menge = dfTemporary['Menge']
-    results = {'ArtikelID': articleId, 'SUM': menge.sum()}
-    sum_article = sum_article.append(results, ignore_index=True)
 
-sum_article = sum_article.set_index('ArtikelID')
-sum_article = sum_article.sort_values('SUM', ascending=False)
-top50_articles = sum_article.head(50)
-display(top50_articles)
+# In[ ]:
+
+
+display(indices)
 
