@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[5]:
+# In[1]:
 
 
 import pandas as pd
@@ -21,7 +21,7 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[6]:
+# In[2]:
 
 
 default_startdate = date(2010, 1, 1)
@@ -31,7 +31,10 @@ default_enddate = date(2018, 10, 1)
 # params: training set data, current value for d (count of differencing)
 # returns Tupel of stationary data and d
 def dickey_fuller(data, d):
-    dftest = adfuller(data, autolag='AIC')
+    try:
+        dftest = adfuller(data, autolag='AIC')
+    except ValueError as e:
+        return (None, None)
     adf_val = dftest[0]
     
     if math.isnan(adf_val):
@@ -47,7 +50,7 @@ def dickey_fuller(data, d):
         data, d = dickey_fuller (data, d)
         # limit to 2, there should never be more than 2x differencing
         # results in loss of quality for prediction
-        if (d >= 2):
+        if (d and d >= 2):
             return (data, d)
     return (data, d)
 
@@ -56,10 +59,6 @@ def dickey_fuller(data, d):
 # returns calculated Vlaue for S
 def getSeasonality(series):
     result = seasonal_decompose(series, model='additive')
-    #print(result.trend)
-    #print(result.seasonal)
-    #print(result.resid)
-    #print(result.observed)
     
     seasonal = [round(j*100) for i, j in enumerate(result.seasonal)]
     peak = max(seasonal)
@@ -173,10 +172,8 @@ def eval_pdq_by_example(maxparam,
                     best_seasonal_pdq = param_seasonal
                     best_mdl = tmp_mdl
             except:
-                # print("Unexpected error:", sys.exc_info()[0])
                 continue
 
-    #print("Best SARIMAX{}x{} model - AIC:{}".format(best_pdq, best_seasonal_pdq, best_aic))
     return {'model': best_mdl,
             'aic': best_aic,
             'paramter': {'p': best_pdq[0],
@@ -202,8 +199,12 @@ def get_best_model(y_train):
         
      # evaluate differencing, Seasonality and Seasonal Diff.
     xx, d = dickey_fuller(y_train, 0)
+    if xx is None and d is None:
+        return {'model': {}}
     S = getSeasonality(y_train)
     D = getSeasonalDifferencing(y_train, S)
+    if not D:
+        return {'model': {}}
     
     # id d + D > 2 then set d = 0
     if (d+D >2): d=0
@@ -217,42 +218,30 @@ def get_best_model(y_train):
     results = eval_pdq_by_example(maxparam=3, y_train=y_train, **known_params)
     results['Known Params'] = ' '.join(list(known_params.keys()))
     return results
-    #param = (p, d, q)
-    #param_seasonal = (P, D, Q, S)
-    #return sm.tsa.statespace.SARIMAX(y_train,
-    #                                 order = param,
-    #                                 seasonal_order = param_seasonal,
-    #                                 enforce_stationarity=False,
-    #                                 enforce_invertibility=False)
 
 def get_quality(test, forecast):
     percantege_error = []
     test_without_0 = test[test != 0.0]
     default_for_0 = np.min(test_without_0) if len(test_without_0) > 6 else 1
     for i,v in enumerate(test):
-        # print('Test-Value %s - Forecast-Value %s' % (v, forecast[i]))
         percantege_error.append(math.sqrt(((forecast[i] / max(v, default_for_0)) - 1)**2))
     mape = sum(percantege_error) / float(len(percantege_error))
     median = statistics.median(percantege_error)
-    # mse = ((test - forecast) ** 2).mean()
-    # original_rmse = math.sqrt(mse)
-    # print('alternative_rmse: %s - alternativ_rmse2: %s original_rmse: %s' %  (alternative_rmse, alternative_rmse2, original_rmse))
     return {'mape': mape,
             'median': median}
 
 
-# In[7]:
+# In[3]:
 
 
 ids = [722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]
 #ids = [722, 3986, 7979, 7612]
 start = date(2010, 1, 1)
 end = date(2018, 10, 1)
-df = get_dataframe([722, 3986])
-display(df)
+df = get_dataframe(ids)
 
 
-# In[8]:
+# In[4]:
 
 
 rmses = np.array([])
@@ -281,10 +270,6 @@ for articleId in articleIds:
         continue
     try:
         fitted_model = model.fit()
-        #pred = fitted_model.get_prediction(dynamic=False,
-        #                                    steps=12,
-        #                                   start=pd.to_datetime('2016-12-01'),
-        #                                   end=pd.to_datetime('2017-12-31'))
         pred = fitted_model.forecast(dynamic=True, steps=10)
         for i,v in enumerate(pred):
             if v < 0:
@@ -296,15 +281,6 @@ for articleId in articleIds:
                                         'Error': True},
                                        ignore_index=True)
         continue
-    #plt.figure(figsize=(20,5))
-    #display(pred)
-    #display(y_test)
-    #plt.plot(pred, color='red')
-    #plt.plot(y_test, color='blue')
-    #plt.show()
-    #rmses = np.append(rmses, [get_rmse(y_test, pred.predicted_mean) / y_train.mean()])
-    #print('RMSE; %s' % get_rmse(y_test, pred))
-    #print('Mean; %s' % y_train.mean())
     quality = get_quality(y_test, pred)
     results = {'ArtikelID': articleId, 
                                     'Skipped': False,
@@ -325,12 +301,10 @@ for articleId in articleIds:
     results_df = results_df.append(results,
                                    ignore_index=True)
     rmses = np.append(rmses, [quality['mape'] / y_train.mean()])
-    # display('RMSE: %s - Mean: %s' % (get_rmse(y_test, pred), y_train.mean()))
 results_df = results_df.set_index('ArtikelID')
-#display('RMSE Mean: %s' % (np.mean(rmses)))
 
 
-# In[9]:
+# In[5]:
 
 
 import datetime

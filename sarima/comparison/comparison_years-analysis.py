@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[5]:
 
 
 import pandas as pd
@@ -21,7 +21,7 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[2]:
+# In[6]:
 
 
 default_startdate = date(2015, 1, 1)
@@ -59,10 +59,7 @@ def dickey_fuller(data, d):
 # returns calculated Vlaue for S
 def getSeasonality(series):
     result = seasonal_decompose(series, model='additive')
-    #print(result.trend)
-    #print(result.seasonal)
-    #print(result.resid)
-    #print(result.observed)
+
     
     seasonal = [round(j*100) for i, j in enumerate(result.seasonal)]
     peak = max(seasonal)
@@ -179,7 +176,6 @@ def eval_pdq_by_example(maxparam,
                 # print("Unexpected error:", sys.exc_info()[0])
                 continue
 
-    #print("Best SARIMAX{}x{} model - AIC:{}".format(best_pdq, best_seasonal_pdq, best_aic))
     return {'model': best_mdl,
             'aic': best_aic,
             'paramter': {'p': best_pdq[0],
@@ -224,13 +220,6 @@ def get_best_model(y_train):
     results = eval_pdq_by_example(maxparam=3, y_train=y_train, **known_params)
     results['Known Params'] = ' '.join(list(known_params.keys()))
     return results
-    #param = (p, d, q)
-    #param_seasonal = (P, D, Q, S)
-    #return sm.tsa.statespace.SARIMAX(y_train,
-    #                                 order = param,
-    #                                 seasonal_order = param_seasonal,
-    #                                 enforce_stationarity=False,
-    #                                 enforce_invertibility=False)
 
 def get_quality(test, forecast):
     percantege_error = []
@@ -241,14 +230,11 @@ def get_quality(test, forecast):
         percantege_error.append(math.sqrt(((forecast[i] / max(v, default_for_0)) - 1)**2))
     mape = sum(percantege_error) / float(len(percantege_error))
     median = statistics.median(percantege_error)
-    # mse = ((test - forecast) ** 2).mean()
-    # original_rmse = math.sqrt(mse)
-    # print('alternative_rmse: %s - alternativ_rmse2: %s original_rmse: %s' %  (alternative_rmse, alternative_rmse2, original_rmse))
     return {'mape': mape,
             'median': median}
 
 
-# In[3]:
+# In[7]:
 
 
 start = date(2015, 1, 1)
@@ -260,7 +246,6 @@ df = get_dataframe()
 
 
 import datetime
-#indices = top50_articles.index.values.tolist()
 indices = [982,6058,3188,2818,3212,6364,4740,3597,4739,1651,239,4737,3337,136,1060,4175,4738,6365,4861,88,4863,3218,5148,
            8109,5671,2276,3139,8554,876,4741,3453,1519,5080,3229,3986,4791,4948,4980,1061,92,4981,91,4890,677,1653,1649,93,
            4250,3335,3582]
@@ -297,10 +282,6 @@ for ye in years_to_compare:
             continue
         try:
             fitted_model = model.fit()
-            #pred = fitted_model.get_prediction(dynamic=False,
-            #                                    steps=12,
-            #                                   start=pd.to_datetime('2016-12-01'),
-            #                                   end=pd.to_datetime('2017-12-31'))
             pred = fitted_model.forecast(dynamic=True, steps=10)
             for i,v in enumerate(pred):
                 if v < 0:
@@ -313,15 +294,7 @@ for ye in years_to_compare:
                                             'Error': True},
                                            ignore_index=True)
             continue
-        #plt.figure(figsize=(20,5))
-        #display(pred)
-        #display(y_test)
-        #plt.plot(pred, color='red')
-        #plt.plot(y_test, color='blue')
-        #plt.show()
-        #rmses = np.append(rmses, [get_rmse(y_test, pred.predicted_mean) / y_train.mean()])
-        #print('RMSE; %s' % get_rmse(y_test, pred))
-        #print('Mean; %s' % y_train.mean())
+
         quality = get_quality(y_test, pred)
         results = {'ArtikelID': articleId, 
                                         'Skipped': False,
@@ -342,19 +315,11 @@ for ye in years_to_compare:
         results_df = results_df.append(results,
                                        ignore_index=True)
         rmses = np.append(rmses, [quality['mape'] / y_train.mean()])
-        # display('RMSE: %s - Mean: %s' % (get_rmse(y_test, pred), y_train.mean()))
     results_df = results_df.set_index('ArtikelID')
-    #display('RMSE Mean: %s' % (np.mean(rmses)))
     print('Mape-Mean %s: %s' % (results_df['Mape'].mean(),ye))
     print('Median-Mean %s: %s' % (results_df['Median'].mean(),ye))
     display(results_df)
     outputfile = 'SARIMA_Pipeline_%s_Jahre_v2.csv' % (ye)
     results_df.to_csv(path_or_buf='outputs/%s' % outputfile,
                          sep=';')
-
-
-# In[ ]:
-
-
-display(indices)
 
