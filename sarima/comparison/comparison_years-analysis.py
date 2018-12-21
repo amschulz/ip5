@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[5]:
+# In[4]:
 
 
 import pandas as pd
@@ -21,68 +21,11 @@ from scipy import signal
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 
-# In[6]:
+# In[5]:
 
 
-default_startdate = date(2015, 1, 1)
+default_startdate = date(2010, 1, 1)
 default_enddate = date(2018, 10, 1)
-
-# performs Augmented Dickey Fuller test
-# params: training set data, current value for d (count of differencing)
-# returns Tupel of stationary data and d
-def dickey_fuller(data, d):
-    try:
-        dftest = adfuller(data, autolag='AIC')
-    except ValueError as e:
-        return (None, None)
-    adf_val = dftest[0]
-    
-    if math.isnan(adf_val):
-        return (data, 0)
-    
-    if adf_val < dftest[4]['5%']:
-        # is stationary
-        return (data, d)
-    else:
-        #not stationary -> differencing.
-        data = np.diff(data)
-        d = d+1
-        data, d = dickey_fuller (data, d)
-        # limit to 2, there should never be more than 2x differencing
-        # results in loss of quality for prediction
-        if (d and d >= 2):
-            return (data, d)
-    return (data, d)
-
-
-# get ACF values for y, find seasonality pattern
-# returns calculated Vlaue for S
-def getSeasonality(series):
-    result = seasonal_decompose(series, model='additive')
-
-    
-    seasonal = [round(j*100) for i, j in enumerate(result.seasonal)]
-    peak = max(seasonal)
-    res = [i for i, j in enumerate(seasonal) if j == peak]
-
-    S = 0
-    if len(res)>1 :
-        S=res[1]-res[0]
-        
-    return S
-    
-# calculate differenced Seasonal series and perform Dickey Fuller
-# Returns seasonal differencing D
-def getSeasonalDifferencing (series, S):
-    seasonal_series = np.array([])
-    max_l = len(series)
-    i = 0
-    while max_l > (i+S):
-        seasonal_series = np.append(seasonal_series, [series[i+S]-series[i]])
-        i = i + 1
-    
-    data, D = dickey_fuller(seasonal_series, 0)
-    return D
 
 def group_by_frequence(df,
                        frequence='MS',
@@ -113,213 +56,146 @@ def get_dataframe(ids_to_track=[]):
     df['Datum'] = pd.to_datetime(df['FaktDatum'], dayfirst=True, errors='raise')
     return df
 
-def getStationaryData(y_train):
-    drange = range(0,3)
-    y_train_stationary = y_train
-    for d in drange:
-        dftest = adfuller(y_train_stationary, autolag='AIC')
-        dfoutput = pd.Series(dftest[0:4], index=['test statistic', 'p-value', '# of lags', '# of observations'])
-        for key, value in dftest[4].items():
-            dfoutput['Critical Value ({})'.format(key)] = value
-        adf_val = dftest[0]
-
-        if adf_val < dftest[4]['5%']:
-            return (y_train_stationary, d)
-        else:
-            y_train_stationary = np.diff(y_train_stationary)
-    return (None, -1)
-
-def eval_pdq_by_example(maxparam,
-                        y_train,
-                        p=-1,d=-1,q=-1,
-                        P=-1,D=-1,Q=-1,S=-1):
-    param_p = [p] if p != -1 else range(0,maxparam)
-    param_d = [d] if d != -1 else range(0,maxparam)
-    param_q = [q] if q != -1 else range(0,maxparam)
-    param_P = [P] if P != -1 else range(0,maxparam)
-    param_D = [D] if D != -1 else range(0,maxparam)
-    param_Q = [Q] if Q != -1 else range(0,maxparam)
-    param_S = [S] if S != -1 else range(0,maxparam)
-    
-    
-    params = list(itertools.product(param_p, param_d, param_q))
-    seasonal_params = list(itertools.product(param_P, param_D, param_Q, param_S))
-    best_aic = 1000000000000
-    best_pdq = (-1,-1,-1)
-    best_seasonal_pdq = (-1,-1,-1,-1)
-    best_mdl = None
-    
-    for param in params:
-        d = param[1]
-        if d >= 3:
-            continue
-        for param_seasonal in seasonal_params:
-            D = param_seasonal[1]
-            if D:
-                param = (param[0], 0, param[2])
-                d = 0
-            if (D + d) >= 3:
-                continue
-            try:
-                tmp_mdl = sm.tsa.statespace.SARIMAX(y_train, 
-                                                    order = param,
-                                                    seasonal_order = param_seasonal,
-                                                    enforce_stationarity=True,
-                                                    enforce_invertibility=True)
-                res = tmp_mdl.fit()
-                if res.aic < best_aic:
-                    best_aic = res.aic
-                    best_pdq = param
-                    best_seasonal_pdq = param_seasonal
-                    best_mdl = tmp_mdl
-            except:
-                # print("Unexpected error:", sys.exc_info()[0])
-                continue
-
-    return {'model': best_mdl,
-            'aic': best_aic,
-            'paramter': {'p': best_pdq[0],
-                         'd': best_pdq[1],
-                         'q': best_pdq[2],
-                         'P': best_seasonal_pdq[0],
-                         'D': best_seasonal_pdq[1],
-                         'Q': best_seasonal_pdq[2],
-                         'S': best_seasonal_pdq[3]}
-           }
-    
-    
-
-def get_best_model(y_train):
-    known_params = {}
-    p = 0
-    d = 0
-    q = 0
-    P = 1
-    D = 0
-    Q = 0
-    S = 12
-        
-     # evaluate differencing, Seasonality and Seasonal Diff.
-    xx, d = dickey_fuller(y_train, 0)
-    if xx is None and d is None:
-        return {'model': {}}
-    S = getSeasonality(y_train)
-    D = getSeasonalDifferencing(y_train, S)
-    if not D:
-        return {'model': {}}
-    
-    # id d + D > 2 then set d = 0
-    if (d+D >2): d=0
-    known_params['d'] = d
-    known_params['D'] = D
-    known_params['S'] = S
-    
-    if S != 12:
-        return {'model': {}}
-
-    results = eval_pdq_by_example(maxparam=3, y_train=y_train, **known_params)
-    results['Known Params'] = ' '.join(list(known_params.keys()))
-    return results
-
-def get_quality(test, forecast):
+# get quality values for article
+def get_quality(test, forecast, printPER=False):
     percantege_error = []
     test_without_0 = test[test != 0.0]
-    default_for_0 = np.min(test_without_0) if len(test_without_0) > 6 else 1
+    mean = test.mean()
+    default_for_0 =  mean / 10 if mean else 0.1
     for i,v in enumerate(test):
-        # print('Test-Value %s - Forecast-Value %s' % (v, forecast[i]))
         percantege_error.append(math.sqrt(((forecast[i] / max(v, default_for_0)) - 1)**2))
+    if printPER:
+        print('PER: %s' % percantege_error)
     mape = sum(percantege_error) / float(len(percantege_error))
     median = statistics.median(percantege_error)
     return {'mape': mape,
             'median': median}
 
-
-# In[7]:
-
-
-start = date(2015, 1, 1)
-end = date(2018, 10, 1)
-df = get_dataframe()
-
-
-# In[ ]:
-
-
-import datetime
-indices = [982,6058,3188,2818,3212,6364,4740,3597,4739,1651,239,4737,3337,136,1060,4175,4738,6365,4861,88,4863,3218,5148,
-           8109,5671,2276,3139,8554,876,4741,3453,1519,5080,3229,3986,4791,4948,4980,1061,92,4981,91,4890,677,1653,1649,93,
-           4250,3335,3582]
-years_to_compare = range(3,11)
-for ye in years_to_compare:
-    ty = 2018
-    s = date(ty - ye, 1, 1)
-    ed = date(ty, 10, 1)
+# get moving average with window w.
+def get_ma(ser, w=2):
+    ma = ser.rolling(window=w).mean()
+    ma = ma.drop(0)
+    ma.index = range(0, len(ma))
+    return ma
     
-    df = get_dataframe(indices)
-    rmses = np.array([])
-    articleIds = df['ArtikelID'].unique()
-    results_df = pd.DataFrame(columns=['ArtikelID', 'Skipped', 'Error', 'Mape', 'Median', 'TrainData Mean', 'aic', 'Known Params',
-                                       'p','d','q','P','D','Q','S',
-                                      ])
-    for articleId in articleIds:
-        dfTemporary = df[(df['ArtikelID'].isin([articleId]))]
-        dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
-        dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=s, enddate=ed)
-        dfTemporary = dfTemporary.drop(columns=['Datum'])
-        y = dfTemporary['Menge']
-        y_train = y[:date(2017,12,31)]
-        X_train = y_train.index
-        y_test = y[date(2018,1,1):date(2018,10,28)]
-        X_test = y_test.index
-        res = get_best_model(y_train)
-        model = res['model']
-        if (model is None) or ( not model):
-            display('Skipped %s' % articleId)
-            results_df = results_df.append({'ArtikelID': articleId, 
-                                            'Skipped': True,
-                                            'Error': False},
-                                           ignore_index=True)
-            continue
-        try:
-            fitted_model = model.fit()
-            pred = fitted_model.forecast(dynamic=True, steps=10)
-            for i,v in enumerate(pred):
-                if v < 0:
-                    pred[i] = 0
-        except Exception as e:
-            print('Exception at Article %s: %s' % (articleId, e))
-            print(model)
-            results_df = results_df.append({'ArtikelID': articleId, 
-                                            'Skipped': False,
-                                            'Error': True},
-                                           ignore_index=True)
-            continue
 
-        quality = get_quality(y_test, pred)
-        results = {'ArtikelID': articleId, 
-                                        'Skipped': False,
-                                        'Error': False, 
-                                        'Median': quality['median'],
-                                        'Mape': quality['mape'],
-                                        'TrainData Mean': y_train.mean(),
-                                        'aic': res['aic'],
-                                        'Known Params': res['Known Params']
-                                        }
 
-        # add data to results df
-        for i, x in enumerate(y_test):
-            results['Test M%s' % (i + 1)] = x
-        for i, x in enumerate(pred):
-            results['Forecast M%s' % (i + 1)] = x 
-        results.update(res['paramter'])
-        results_df = results_df.append(results,
-                                       ignore_index=True)
-        rmses = np.append(rmses, [quality['mape'] / y_train.mean()])
-    results_df = results_df.set_index('ArtikelID')
-    print('Mape-Mean %s: %s' % (results_df['Mape'].mean(),ye))
-    print('Median-Mean %s: %s' % (results_df['Median'].mean(),ye))
-    display(results_df)
-    outputfile = 'SARIMA_Pipeline_%s_Jahre_v2.csv' % (ye)
-    results_df.to_csv(path_or_buf='outputs/%s' % outputfile,
-                         sep=';')
+# In[47]:
+
+
+yes = [4,5,6,7,8, 9, 10]
+ob_quartil = []
+un_quartil = []
+ob_whisker = []
+un_whisker = []
+median_abc =   []
+
+# for every prediction with different years input rad in the file
+for ye in yes:
+    file = 'outputs/SARIMA_Pipeline_%s_Jahre_v3.csv' % ye
+    df_read = pd.read_csv(filepath_or_buffer=file,
+                     sep=';',
+                     header=0,
+                     index_col=0)
+    df_hortima = pd.read_csv(filepath_or_buffer='outputs/Prognose_Hortima_2018.csv',
+                             sep=';',
+                             header=0,
+                             index_col=0)
+    df_read = df_read.drop(columns=['Mape', 'Median', 'TrainData Mean'])
+    for i in range(1,13):
+        df_read['Hortima M%s' % str(i)] = df_hortima[str(i)]
+    
+    artIds = df_read.index
+
+    median = []
+    mape = []
+    median_hortima = []
+    mape_hortima = []
+    ma_median = []
+    ma_mape = []
+    ma_median_hortima = []
+    ma_mape_hortima = []
+    drop_col = []
+	
+	# iterate over every article and get quality
+    for ind, artId in enumerate(artIds):
+        test_data = []
+        forecast_data = []
+        hortima_data= []
+        for i in range(1, 11):
+            test_data.append(df_read['Test M%s' % i][artId])
+            forecast_data.append(df_read['Forecast M%s' % i][artId])
+            hortima_data.append(df_read['Hortima M%s' % i][artId])
+            if ind == 0:
+                drop_col.append('Test M%s' % i)
+                drop_col.append('Forecast M%s' % i)
+                drop_col.append('Hortima M%s' % i)
+
+        # turn lists into pd.series 
+        series_test = pd.Series(test_data)
+        series_forecast = pd.Series(forecast_data)
+        series_hortima = pd.Series(hortima_data)
+
+        # get quality for actual prediction
+        quality = get_quality(series_test, series_forecast)
+        mape.append(quality['mape'])
+
+        quality_hortima = get_quality(series_test, series_hortima)
+        mape_hortima.append(quality_hortima['mape'])
+
+	# append quality values to df.
+    df_read = df_read.drop(columns=drop_col)
+    df_read['Mape Forecast'] = mape
+    df_read['Mape Hortima'] = mape_hortima
+	
+	# exclude articles which have errors or were skipped
+    print('Amount of articles skipped: %s' % len(df_read[df_read['Skipped'] == True]))
+    print('Amount of articles with errors:  %s' % len(df_read[df_read['Error'] == True]))
+    df_read = df_read[df_read['Skipped'] == False]
+    df_read = df_read[df_read['Error'] == False]
+    checkdf = df_read.isna()
+	
+	# display boxplots for specfific columns
+    for col in df_read.columns:
+        if ('Mape' in col) and (not 'Hortima' in col):
+            an_col = df_read[col]         
+
+            f, ax = plt.subplots(1, 3)
+            f.set_size_inches(20, 4)
+            ax[0].boxplot(an_col, showfliers=False)
+            ax[0].set_title('Boxplot %s ohne Ausreisser %s Jahre' % (col, ye))
+            B = ax[1].boxplot(an_col, showfliers=True)
+            ax[1].set_title('Boxplot %s mit Ausreisser %s Jahre' % (col, ye))
+            ob_quartil.append(B['boxes'][0].get_ydata()[2])
+            un_quartil.append(B['boxes'][0].get_ydata()[0])
+            ob_whisker.append(B['whiskers'][0].get_ydata()[1])
+            un_whisker.append(B['whiskers'][1].get_ydata()[1])
+            median_abc.append(B['medians'][0].get_ydata()[0])
+            display((B['medians'][0].get_ydata()[0]))
+            t = '\n'.join(
+                ('Anzahl Werte: %s' % len(an_col),
+                 'Anzahl Werte x > 1: %s' % len(an_col[an_col > 1]),
+                 'Anzahl Werte 1 >= x > 0.5 : %s' % len(an_col[(an_col > 0.5) & (an_col <= 1)]),
+                 'Anzahl Werte 0.5 >= x: %s' % len(an_col[an_col <= 0.5]),
+                 #'Mittelwert: %s' % (an_col.mean())
+                )
+            )
+            ax[2].text(0.05, 0.6,t,fontsize=16,)
+            ax[2].get_xaxis().set_ticks([])
+            ax[2].get_yaxis().set_ticks([])
+            plt.show()
+
+# display development of boxplot-values over different years
+plt.title("Verlauf Boxplot-Werte")
+plt.plot(pd.Series(data=ob_quartil, index=yes), color='red')
+plt.plot(pd.Series(data=un_quartil, index=yes), color='blue')
+plt.plot(pd.Series(data=ob_whisker, index=yes), color='green')
+plt.plot(pd.Series(data=un_whisker, index=yes), color='black')
+plt.plot(pd.Series(data=median_abc, index=yes), color='orange')
+plt.legend(handles=[mpatches.Patch(color='red', label='Oberes Quartil'),
+                    mpatches.Patch(color='blue', label='Unteres Quartil'),
+                    mpatches.Patch(color='green', label='Unterer Whisker'),
+                    mpatches.Patch(color='black', label='Oberer Whisker'),
+                    mpatches.Patch(color='orange', label='Median')])
+plt.show()
 

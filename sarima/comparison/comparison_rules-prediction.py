@@ -43,6 +43,7 @@ from operator import itemgetter
 # In[144]:
 
 
+# Check if acf/pacf has a cutoff at a specific lag
 def get_data_behavior(cf):
     diffed_cf = np.diff(cf)
     big_decrease_lags = np.where(diffed_cf < -0.15)
@@ -84,7 +85,6 @@ def rule_02(known_ps, da):
     acf = sm.tsa.stattools.acf(da, nlags=36)
     if acf[1] <= -0.5:
         known_ps['d'] = known_ps.get('d',0) - 1
-        # What to do with data now? We don't have access to the data before the differencing.
     return (known_ps, da)
 
 def rule_03(known_ps, da):
@@ -93,7 +93,7 @@ def rule_03(known_ps, da):
     #  standard deviation is lowest. (Not always, though. Slightly too much or slightly too 
     #  little differencing can also be corrected with AR or MA terms. See rules 6 and 7.)
     
-    # What should i do now?
+	# see apply_rules
     return (known_ps, da)
 
 def rule_04(known_ps, da):
@@ -155,7 +155,7 @@ def rule_08(known_ps, da):
     #   original model require more than 10 iterations to converge. 
     #   !!!! BEWARE OF USING MULTIPLE AR TERMS AND MULTIPLE MA TERMS IN THE SAME MODEL.
     
-    # Already in iteration through params.
+    # Already in iteration through params in eval_pdq_by_example.
     pass
 
 def rule_09(known_ps, da):
@@ -164,7 +164,7 @@ def rule_09(known_ps, da):
     #   AR coefficients is almost exactly 1--you should reduce the number of AR terms 
     #   by one and increase the order of differencing by one.
     
-    # Not possible to implement
+    # No time to implement. Had to be done in eval_pdq_by_example
     pass
 
 def rule_10(known_ps, da):
@@ -173,7 +173,7 @@ def rule_10(known_ps, da):
     #   MA coefficients is almost exactly 1--you should reduce the number of MA terms 
     #   by one and reduce the order of differencing by one.
     
-    # Not possible to implement
+    # No time to implement. Had to be done in eval_pdq_by_example
     pass
 
 def rule_11(known_ps, da):
@@ -191,7 +191,7 @@ def rule_12(known_ps, da):
     #   fade away over time). However, never use more than one order of seasonal differencing or 
     #   more than 2 orders of total differencing (seasonal+nonseasonal).
     
-    # Already done in iteration over different differences.
+    # Done before calling apply_rules.
     pass
 
 def rule_13(known_ps, da):
@@ -214,7 +214,9 @@ def rule_13(known_ps, da):
             known_ps['Q'] = known_ps.get('Q',0) + 1        
     return (known_ps, da)
     
+# apply the rules 1 to 13. See above for more details.
 def apply_rules(known_param, traindata):
+	# appyling of rule 3
     diffed0 = traindata
     diffed1 = np.diff(diffed0)
     l = [(0,diffed0, 0, diffed0.std()), (1,diffed1, 0, diffed1.std())]    
@@ -223,6 +225,8 @@ def apply_rules(known_param, traindata):
         diffed2 = np.diff(diffed1)
         l.append((2, diffed2, 0, diffed2.std()))
     l.sort(key=lambda das: das[3])
+	
+	
     for ds in l:
         errors = ds[2]
         known_param['d'] = ds[0]
@@ -350,6 +354,7 @@ def getStationaryData(y_train):
             y_train_stationary = np.diff(y_train_stationary)
     return (None, -1)
 
+# GridSearch Algorithm. Known parameters can be given as parameter and will not be changed. 
 def eval_pdq_by_example(maxparam,
                         y_train,
                         p=-1,d=-1,q=-1,
@@ -370,6 +375,7 @@ def eval_pdq_by_example(maxparam,
     best_seasonal_pdq = (-1,-1,-1,-1)
     best_mdl = None
     
+	# iterate through all non-seasonal and seasonal paramter-combinations.
     for param in params:
         for param_seasonal in seasonal_params:
             if param_seasonal[3] != 0:
@@ -382,6 +388,8 @@ def eval_pdq_by_example(maxparam,
                                                     enforce_stationarity=True,
                                                     enforce_invertibility=True)
                 res = tmp_mdl.fit()
+				
+				# check if model is better than current best model and replace if so.
                 if res.aic < best_aic:
                     best_aic = res.aic
                     best_pdq = param
@@ -413,12 +421,11 @@ def get_best_model(y_train):
     Q = 0
     S = 12
     
+	# get seasonality and the seasonal differencing
     S = getSeasonality(y_train)
-
     xx2, d2 = getSeasonalDifferencing(y_train, S)
     known_params['D'] = d2
     known_params['S'] = S
-    
     if S != 12:
         return {'model': {}}
     
@@ -447,13 +454,19 @@ for articleId in articleIds:
     dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
     dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
     dfTemporary = dfTemporary.drop(columns=['Datum'])
+	
+	# Split in train and test data.
     y = dfTemporary['Menge']
     y_train = y[:date(2017,12,31)]
     X_train = y_train.index
     y_test = y[date(2018,1,1):date(2018,10,28)]
     X_test = y_test.index
+	
+	# get best possible model
     res = get_best_model(y_train)
     model = res['model']
+	
+	# Skip if model is not set
     if model is None:
         display('Skipped %s' % articleId)
         results_df = results_df.append({'ArtikelID': articleId, 
@@ -462,6 +475,7 @@ for articleId in articleIds:
                                        ignore_index=True)
         continue
     try:
+		# fit model and get prediction
         fitted_model = model.fit()
 
         pred = fitted_model.forecast(dynamic=True, steps=10)
@@ -497,7 +511,7 @@ results_df = results_df.set_index('ArtikelID')
 
 # In[149]:
 
-
+# display results and save them in a new file
 display(results_df)
 outputfile = 'SARIMA_Pipeline_%s.csv' % (datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 results_df.to_csv(path_or_buf='outputs/%s' % outputfile,

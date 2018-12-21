@@ -128,6 +128,7 @@ def getStationaryData(y_train):
             y_train_stationary = np.diff(y_train_stationary)
     return (None, -1)
 
+# GridSearch Algorithm. Known parameters can be given as parameter and will not be changed (except d). 
 def eval_pdq_by_example(maxparam,
                         y_train,
                         p=-1,d=-1,q=-1,
@@ -148,6 +149,7 @@ def eval_pdq_by_example(maxparam,
     best_seasonal_pdq = (-1,-1,-1,-1)
     best_mdl = None
     
+	# iterate through all non-seasonal and seasonal paramter-combinations.
     for param in params:
         d = param[1]
         if d >= 3:
@@ -166,6 +168,8 @@ def eval_pdq_by_example(maxparam,
                                                     enforce_stationarity=True,
                                                     enforce_invertibility=True)
                 res = tmp_mdl.fit()
+				
+				# check if model is better than current best model and replace if so.
                 if res.aic < best_aic:
                     best_aic = res.aic
                     best_pdq = param
@@ -238,7 +242,7 @@ ids = [722, 3986, 7979, 7612, 239, 1060, 5841, 6383, 5830]
 #ids = [722, 3986, 7979, 7612]
 start = date(2010, 1, 1)
 end = date(2018, 10, 1)
-df = get_dataframe(ids)
+df = get_dataframe()
 
 
 # In[4]:
@@ -254,13 +258,19 @@ for articleId in articleIds:
     dfTemporary = dfTemporary.drop(columns=['ArtikelID'])
     dfTemporary = group_by_frequence(dfTemporary, frequence='MS',startdate=start, enddate=end)
     dfTemporary = dfTemporary.drop(columns=['Datum'])
+	
+	# Split in train and test data.
     y = dfTemporary['Menge']
     y_train = y[:date(2017,12,31)]
     X_train = y_train.index
     y_test = y[date(2018,1,1):date(2018,10,28)]
     X_test = y_test.index
+	
+	# get best possible model
     res = get_best_model(y_train)
     model = res['model']
+	
+	# Skip if model is not set
     if model is None:
         display('Skipped %s' % articleId)
         results_df = results_df.append({'ArtikelID': articleId, 
@@ -269,6 +279,7 @@ for articleId in articleIds:
                                        ignore_index=True)
         continue
     try:
+		# fit model and get prediction
         fitted_model = model.fit()
         pred = fitted_model.forecast(dynamic=True, steps=10)
         for i,v in enumerate(pred):
@@ -306,7 +317,7 @@ results_df = results_df.set_index('ArtikelID')
 
 # In[5]:
 
-
+# display results and save them in a new file
 import datetime
 print('Mape-Mean: %s' % results_df['Mape'].mean())
 print('Median-Mean: %s' % results_df['Median'].mean())

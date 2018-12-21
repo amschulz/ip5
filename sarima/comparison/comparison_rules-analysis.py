@@ -56,9 +56,7 @@ def get_dataframe(ids_to_track=[]):
     df['Datum'] = pd.to_datetime(df['FaktDatum'], dayfirst=True, errors='raise')
     return df
 
-
-
-
+# get quality values for article
 def get_quality(test, forecast, printPER=False):
     percantege_error = []
     test_without_0 = test[test != 0.0]
@@ -73,6 +71,7 @@ def get_quality(test, forecast, printPER=False):
     return {'mape': mape,
             'median': median}
 
+# get moving average with window w.
 def get_ma(ser, w=2):
     ma = ser.rolling(window=w).mean()
     ma = ma.drop(0)
@@ -82,7 +81,8 @@ def get_ma(ser, w=2):
 
 # In[3]:
 
-
+# read in files with predictions . note that naming is strange from this point on.
+# "hortima" parameters are actually our own and had to be renamed. They represent the gridsearch
 df_read = pd.read_csv(filepath_or_buffer='outputs/SARIMA_Pipeline_ParameterSearch.csv',
                  sep=';',
                  header=0,
@@ -96,7 +96,7 @@ df_read = df_read.drop(columns=['TrainData Mean'])
 
 # In[4]:
 
-
+# Include grid-search data in same df as prediction with params.
 for i in range(1,11):
     df_read['Grid M%s' % str(i)] = df_hortima['Forecast M%s' % str(i)]
 
@@ -116,6 +116,7 @@ ma_median_hortima = []
 ma_mape_hortima = []
 drop_col = []
 
+# iterate over every article and get quality
 for ind, artId in enumerate(artIds):
     test_data = []
     forecast_data = []
@@ -156,6 +157,7 @@ for ind, artId in enumerate(artIds):
     ma_median_hortima.append(ma_quality_hortima['median'])
     ma_mape_hortima.append(ma_quality_hortima['mape'])
 
+# append quality values to df.
 df_read = df_read.drop(columns=drop_col)
 df_read['MA Median Forecast'] = ma_median
 df_read['MA Median Grid'] = ma_median_hortima
@@ -165,6 +167,8 @@ df_read['Median Forecast'] = median
 df_read['Median Grid'] = median_hortima
 df_read['Mape Parameter'] = mape
 df_read['Mape GridSearch'] = mape_hortima
+
+# exclude articles which have errors or were skipped
 print('Amount of articles skipped: %s' % len(df_read[df_read['Skipped'] == True]))
 print('Amount of articles with errors:  %s' % len(df_read[df_read['Error'] == True]))
 df_read = df_read[df_read['Skipped'] == False]
@@ -174,7 +178,7 @@ display(df_read.head())
 
 # In[6]:
 
-
+# remove articles whiche were not predicted by the gridsearch.
 checkdf = df_read.isna()
 df_read = df_read[checkdf['MA Median Grid'] == False]
 
@@ -189,6 +193,8 @@ ob_whisker = []
 un_whisker = []
 median_abc =[]
 names = []
+
+# display boxplots for specfific columns
 for col in df_read.columns:
     if ('Mape' in col) and (not 'MA' in col):
         names.append(col)
